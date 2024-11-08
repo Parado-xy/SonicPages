@@ -25,7 +25,7 @@ Sonic Pages is a web-based application that allows users to upload PDF documents
 
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/your-username/sonic-pages.git
+   git clone https://github.com/Parado-xy/sonic-pages.git
    cd sonic-pages
    ```
 
