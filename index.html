@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sonic Pages.</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.9.359/pdf.min.js"></script>
+    <link rel="icon" href="logo.svg" type="image/svg+xml">
+
+    <style>
+        .pdf-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        #pdf-canvas {
+            width: 100%;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        .voice-selection {
+            max-width: 300px;
+            margin: 0 auto;
+        }
+        .progress {
+            display: none;
+            margin: 20px 0;
+        }
+        #error-alert {
+            display: none;
+        }
+        .app-logo {
+            width: 50px;
+            height: 50px;
+        }
+        footer {
+            background: linear-gradient(to right, #ffa500, #ff6b6b);
+            color: white;
+            padding: 10px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: bold;
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        .content {
+            padding-bottom: 50px; /* Height of the footer */
+        }
+
+        #upload-button {
+        background: linear-gradient(to right, #ffa500, #ff6b6b);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        }
+
+        #upload-button .bi {
+        margin-right: 8px;
+        }
+            </style>
+</head>
+<body class="bg-light">
+    <div class="container py-5">
+        <div class="pdf-container">
+            <!-- Header -->
+            <div class="text-center mb-4">
+                <h1 class="h3 mb-3">Sonic Pages.<img src="logo.svg" alt="App Logo" class="app-logo" /></h1>
+                
+
+                <p class="text-muted">Upload a PDF and convert it to speech</p>
+            </div>
+
+            <!-- Error Alert -->
+            <div id="error-alert" class="alert alert-danger alert-dismissible fade show" role="alert">
+                <span id="error-message"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+
+            <!-- Upload Section -->
+            <div class="card mb-4">
+                <div class="card-body text-center">
+                    <input type="file" id="pdf-upload" accept=".pdf" class="d-none">
+                    <button id="upload-button" class="btn btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-upload me-2" viewBox="0 0 16 16">
+                            <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5"/>
+                            <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708z"/>
+                        </svg>
+                        Upload PDF
+                    </button>
+                </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="progress">
+                <div id="progress-bar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+            </div>
+
+            <!-- PDF Display -->
+            <canvas id="pdf-canvas"></canvas>
+
+            <!-- Voice Selection -->
+            <div class="voice-selection mb-4">
+                <select id="voice-select" class="form-select">
+                    <option value="">Select a voice...</option>
+                </select>
+            </div>
+
+            <!-- Auto Page Flip Toggle -->
+            <div class="form-check text-center mb-3">
+                <input class="form-check-input" type="checkbox" id="auto-flip" checked>
+                <label class="form-check-label" for="auto-flip">
+                    Automatically flip to next page
+                </label>
+            </div>
+
+            <!-- Controls -->
+            <div class="controls d-flex justify-content-center gap-2">
+                <button id="prev-page" class="btn btn-outline-secondary" disabled>Previous</button>
+                <button id="play-button" class="btn btn-success" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-play-fill" viewBox="0 0 16 16">
+                        <path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393"/>
+                    </svg>
+                </button>
+                <button id="pause-button" class="btn btn-warning" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pause-fill" viewBox="0 0 16 16">
+                        <path d="M5.5 3.5A1.5 1.5 0 0 1 7 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5m5 0A1.5 1.5 0 0 1 12 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5"/>
+                    </svg>
+                </button>
+                <button id="stop-button" class="btn btn-danger" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-stop-fill" viewBox="0 0 16 16">
+                        <path d="M5 3.5h6A1.5 1.5 0 0 1 12.5 5v6a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 11V5A1.5 1.5 0 0 1 5 3.5"/>
+                    </svg>
+                </button>
+                <button id="next-page" class="btn btn-outline-secondary" disabled>Next</button>
+            </div>
+
+            <!-- Page Counter -->
+            <div id="page-counter" class="text-center text-muted mt-3"></div>
+        </div>
+    </div>
+    <footer> &copy; SonicPages 2024 </footer>
+    <script src = './index.js'></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>
