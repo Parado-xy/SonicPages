@@ -30,7 +30,7 @@ Sonic Pages is a web-based application that allows users to upload PDF documents
    ```
 
 2. **Run the Application**:
-   Open `index.html` in your browser to test the application locally. No additional server setup is required.
+   Assuming node is installed, run `npm init` then `npm start`
 
 ## Usage
 
