@@ -1,214 +1,275 @@
-// Initialize PDF.js worker by setting the path to the worker file
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.9.359/pdf.worker.min.js';
+// Constants for better maintainability
+const CONSTANTS = {
+    PDF_WORKER_URL: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.9.359/pdf.worker.min.js',
+    DEFAULT_SCALE: 1.5,
+    LOCAL_STORAGE_KEYS: {
+        SELECTED_VOICE: 'selectedVoice',
+        BOOK_CACHE: 'bookCache'
+    }
+};
 
-// Define DOM elements by selecting elements from the HTML document
-const pdfUpload = document.getElementById('pdf-upload'),           // PDF file input
-      uploadButton = document.getElementById('upload-button'),     // Upload button
-      canvas = document.getElementById('pdf-canvas'),              // Canvas for displaying PDF pages
-      playButton = document.getElementById('play-button'),         // Play button for TTS
-      pauseButton = document.getElementById('pause-button'),       // Pause button for TTS
-      stopButton = document.getElementById('stop-button'),         // Stop button for TTS
-      prevButton = document.getElementById('prev-page'),           // Button to go to the previous page
-      nextButton = document.getElementById('next-page'),           // Button to go to the next page
-      voiceSelect = document.getElementById('voice-select'),       // Voice selection dropdown
-      pageCounter = document.getElementById('page-counter'),       // Display for page count
-      progressBar = document.querySelector('.progress'),           // Progress bar container
-      progressBarInner = document.getElementById('progress-bar'),  // Inner progress bar element
-      errorAlert = document.getElementById('error-alert'),         // Alert for displaying errors
-      errorMessage = document.getElementById('error-message'),     // Error message text
-      autoFlipToggle = document.getElementById('auto-flip');       // Toggle for auto page flip
+// DOM element references in a single object for better organization
+const elements = {
+    pdfUpload: document.getElementById('pdf-upload'),
+    uploadButton: document.getElementById('upload-button'),
+    canvas: document.getElementById('pdf-canvas'),
+    playButton: document.getElementById('play-button'),
+    pauseButton: document.getElementById('pause-button'),
+    stopButton: document.getElementById('stop-button'),
+    prevButton: document.getElementById('prev-page'),
+    nextButton: document.getElementById('next-page'),
+    voiceSelect: document.getElementById('voice-select'),
+    pageCounter: document.getElementById('page-counter'),
+    progressBar: document.querySelector('.progress'),
+    progressBarInner: document.getElementById('progress-bar'),
+    errorAlert: document.getElementById('error-alert'),
+    errorMessage: document.getElementById('error-message'),
+    autoFlipToggle: document.getElementById('auto-flip')
+};
 
-// Define application state variables
-let pdfDoc = null;                       // PDF document object
-let currentPage = 1;                     // Current page number
-let utterance = null;                    // SpeechSynthesis utterance object for TTS
-let isPlaying = false;                   // Indicates if TTS is currently playing
-let shouldContinueReading = false;       // Indicates if TTS should continue after page flip
+// State management class
+class PDFReaderState {
+    constructor() {
+        this.pdfDoc = null;
+        this.currentPage = 1;
+        this.utterance = null;
+        this.isPlaying = false;
+        this.shouldContinueReading = false;
+        this.currentFile = null;
+        this.bookCache = this.loadBookCache();
+    }
 
-// Initialize voice selection for text-to-speech (TTS)
-function loadVoices() {
-    const voices = speechSynthesis.getVoices();                       // Get available TTS voices
-    voiceSelect.innerHTML = '<option value="">Select a voice...</option>';  // Default option for voice selection
-    voices.forEach((voice, index) => {                                // Populate dropdown with voices
-        const option = document.createElement('option');
-        option.value = index;                                         // Set voice index as option value
-        option.textContent = `${voice.name} (${voice.lang})`;         // Display voice name and language
-        voiceSelect.appendChild(option);                              // Add option to dropdown
-    });
+    loadBookCache() {
+        try {
+            return JSON.parse(localStorage.getItem(CONSTANTS.LOCAL_STORAGE_KEYS.BOOK_CACHE)) || {};
+        } catch (error) {
+            console.error('Error loading book cache:', error);
+            return {};
+        }
+    }
 
-    // Retrieve saved voice preference from local storage
-    const savedVoiceIndex = localStorage.getItem('selectedVoice');
-    if (savedVoiceIndex && savedVoiceIndex < voices.length) {         // Check if saved preference exists
-        voiceSelect.value = savedVoiceIndex;                          // Set dropdown to saved voice
+    saveBookCache() {
+        try {
+            localStorage.setItem(CONSTANTS.LOCAL_STORAGE_KEYS.BOOK_CACHE, JSON.stringify(this.bookCache));
+        } catch (error) {
+            console.error('Error saving book cache:', error);
+        }
+    }
+
+    updateCurrentPage(page) {
+        if (this.currentFile) {
+            this.currentPage = page;
+            this.bookCache[`${this.currentFile.name}_currentPage`] = page;
+            this.saveBookCache();
+        }
     }
 }
 
-// Load voices immediately when they’re ready
-speechSynthesis.onvoiceschanged = loadVoices;
-loadVoices();
+// Initialize PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = CONSTANTS.PDF_WORKER_URL;
 
-// Display an error message in the alert box
-function showError(message) {
-    errorMessage.textContent = message;                               // Set error message text
-    errorAlert.style.display = 'block';                               // Show error alert
+// Create state instance
+const state = new PDFReaderState();
+
+// Voice management
+class VoiceManager {
+    static loadVoices() {
+        const voices = speechSynthesis.getVoices();
+        elements.voiceSelect.innerHTML = '<option value="">Select a voice...</option>';
+        
+        voices.forEach((voice, index) => {
+            const option = document.createElement('option');
+            option.value = index;
+            option.textContent = `${voice.name} (${voice.lang})`;
+            elements.voiceSelect.appendChild(option);
+        });
+
+        // Restore saved voice preference
+        const savedVoiceIndex = localStorage.getItem(CONSTANTS.LOCAL_STORAGE_KEYS.SELECTED_VOICE);
+        if (savedVoiceIndex && savedVoiceIndex < voices.length) {
+            elements.voiceSelect.value = savedVoiceIndex;
+        }
+    }
+
+    static saveVoicePreference(voiceIndex) {
+        localStorage.setItem(CONSTANTS.LOCAL_STORAGE_KEYS.SELECTED_VOICE, voiceIndex);
+    }
 }
 
-// Function to load PDF from file input
+// Error handling
+function showError(message) {
+    elements.errorMessage.textContent = message;
+    elements.errorAlert.style.display = 'block';
+}
+
+// PDF loading and rendering
 async function loadPDF(file) {
     try {
-        progressBar.style.display = 'flex';                           // Show progress bar
-        progressBarInner.style.width = '0%';                          // Reset progress bar width
+        elements.progressBar.style.display = 'flex';
+        elements.progressBarInner.style.width = '0%';
 
-        const reader = new FileReader();                              // Initialize file reader
-        reader.onprogress = (event) => {                              // Update progress bar on file load progress
+        const arrayBuffer = await readFileAsArrayBuffer(file);
+        state.pdfDoc = await pdfjsLib.getDocument(arrayBuffer).promise;
+        state.currentFile = file;
+
+        // Load saved page or start from beginning
+        const savedPage = state.bookCache[`${file.name}_currentPage`] || 1;
+        state.currentPage = savedPage;
+        await renderPage(savedPage);
+        updateControls();
+
+    } catch (error) {
+        showError(`Error loading PDF: ${error.message}`);
+    } finally {
+        elements.progressBar.style.display = 'none';
+    }
+}
+
+function readFileAsArrayBuffer(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        
+        reader.onprogress = (event) => {
             if (event.lengthComputable) {
                 const percent = (event.loaded / event.total) * 100;
-                progressBarInner.style.width = percent + '%';         // Set progress bar width
+                elements.progressBarInner.style.width = `${percent}%`;
             }
         };
 
-        // Convert file to ArrayBuffer to load it into PDF.js
-        const arrayBuffer = await new Promise((resolve, reject) => {
-            reader.onload = () => resolve(reader.result);             // Resolve on successful file load
-            reader.onerror = reject;                                  // Reject on error
-            reader.readAsArrayBuffer(file);                           // Start reading file as ArrayBuffer
-        });
-
-        pdfDoc = await pdfjsLib.getDocument(arrayBuffer).promise;     // Load PDF document
-        currentPage = 1;                                              // Reset to the first page
-        renderPage(currentPage);                                      // Render the first page
-        updateControls();                                             // Update control button states
-
-    } catch (error) {
-        showError('Error loading PDF: ' + error.message);             // Show error message if PDF loading fails
-    } finally {
-        progressBar.style.display = 'none';                           // Hide progress bar after load
-    }
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('File reading failed'));
+        reader.readAsArrayBuffer(file);
+    });
 }
 
-// Function to render a specific page of the PDF onto the canvas
 async function renderPage(pageNumber) {
     try {
-        const page = await pdfDoc.getPage(pageNumber);                // Get specific page from PDF
-        const viewport = page.getViewport({ scale: 1.5 });            // Set scale for display
+        const page = await state.pdfDoc.getPage(pageNumber);
+        const viewport = page.getViewport({ scale: CONSTANTS.DEFAULT_SCALE });
 
-        canvas.height = viewport.height;                              // Set canvas height
-        canvas.width = viewport.width;                                // Set canvas width
+        elements.canvas.height = viewport.height;
+        elements.canvas.width = viewport.width;
 
-        // Render PDF page content onto the canvas
         await page.render({
-            canvasContext: canvas.getContext('2d'),                   // Get 2D context for canvas
-            viewport: viewport                                        // Set viewport for rendering
+            canvasContext: elements.canvas.getContext('2d'),
+            viewport: viewport
         }).promise;
 
-        const textContent = await page.getTextContent();              // Extract text content from page
-        const text = textContent.items.map(item => item.str).join(' ');  // Concatenate text from items
+        const textContent = await page.getTextContent();
+        const text = textContent.items.map(item => item.str).join(' ');
 
-        // Initialize TTS for the text on this page
         prepareTextToSpeech(text);
+        updatePageCounter();
 
-        pageCounter.textContent = `Page ${currentPage} of ${pdfDoc.numPages}`;  // Update page counter display
     } catch (error) {
-        showError('Error rendering page: ' + error.message);          // Show error if rendering fails
+        showError(`Error rendering page: ${error.message}`);
     }
 }
 
-// Initialize TTS for the current page text
+// Text-to-Speech functionality
 function prepareTextToSpeech(text) {
-    speechSynthesis.cancel();                                         // Cancel any ongoing TTS
-    utterance = new SpeechSynthesisUtterance(text);                   // Create new utterance
+    speechSynthesis.cancel();
+    state.utterance = new SpeechSynthesisUtterance(text);
 
-    const selectedVoice = voiceSelect.value;                          // Get selected voice from dropdown
+    const selectedVoice = elements.voiceSelect.value;
     if (selectedVoice) {
-        utterance.voice = speechSynthesis.getVoices()[selectedVoice]; // Set voice for utterance if selected
+        state.utterance.voice = speechSynthesis.getVoices()[selectedVoice];
     }
 
-    utterance.onend = handleSpeechEnd;                                // Attach handler for end of speech
+    state.utterance.onend = handleSpeechEnd;
 }
 
-// Handle actions after speech ends
 function handleSpeechEnd() {
-    isPlaying = false;
+    state.isPlaying = false;
 
-    if (shouldContinueReading && autoFlipToggle.checked && currentPage < pdfDoc.numPages) {
-        currentPage++;                                                // Move to next page
-        renderPage(currentPage).then(() => {                          // Render and speak new page if continuing
-            if (shouldContinueReading) {
-                isPlaying = true;
-                speechSynthesis.speak(utterance);
+    if (state.shouldContinueReading && 
+        elements.autoFlipToggle.checked && 
+        state.currentPage < state.pdfDoc.numPages) {
+        
+        state.updateCurrentPage(state.currentPage + 1);
+        renderPage(state.currentPage).then(() => {
+            if (state.shouldContinueReading) {
+                state.isPlaying = true;
+                speechSynthesis.speak(state.utterance);
             }
         });
     } else {
-        shouldContinueReading = false;
+        state.shouldContinueReading = false;
     }
 
-    updateControls();                                                 // Update control button states
+    updateControls();
 }
 
-// Function to update control button states
+// UI updates
 function updateControls() {
-    const hasPDF = pdfDoc !== null;
-    playButton.disabled = !hasPDF || isPlaying;
-    pauseButton.disabled = !isPlaying;
-    stopButton.disabled = !isPlaying;
-    prevButton.disabled = !hasPDF || currentPage <= 1;
-    nextButton.disabled = !hasPDF || currentPage >= pdfDoc?.numPages;
-    voiceSelect.disabled = !hasPDF;
+    const hasPDF = state.pdfDoc !== null;
+    elements.playButton.disabled = !hasPDF || state.isPlaying;
+    elements.pauseButton.disabled = !state.isPlaying;
+    elements.stopButton.disabled = !state.isPlaying;
+    elements.prevButton.disabled = !hasPDF || state.currentPage <= 1;
+    elements.nextButton.disabled = !hasPDF || state.currentPage >= state.pdfDoc?.numPages;
+    elements.voiceSelect.disabled = !hasPDF;
 }
 
-// Event listeners for button and file upload interactions
-uploadButton.addEventListener('click', () => pdfUpload.click());      // Trigger file input on button click
+function updatePageCounter() {
+    elements.pageCounter.textContent = `Page ${state.currentPage} of ${state.pdfDoc.numPages}`;
+}
 
-pdfUpload.addEventListener('change', (e) => {
+// Event listeners
+elements.uploadButton.addEventListener('click', () => elements.pdfUpload.click());
+
+elements.pdfUpload.addEventListener('change', (e) => {
     const file = e.target.files[0];
-    if (file) {
-        loadPDF(file);                                                // Load PDF when file is selected
-    }
+    if (file) loadPDF(file);
 });
 
-playButton.addEventListener('click', () => {
-    if (utterance) {
-        isPlaying = true;
-        shouldContinueReading = true;
-        speechSynthesis.speak(utterance);                             // Start TTS on play
+elements.playButton.addEventListener('click', () => {
+    if (state.utterance) {
+        state.isPlaying = true;
+        state.shouldContinueReading = true;
+        speechSynthesis.speak(state.utterance);
         updateControls();
     }
 });
 
-pauseButton.addEventListener('click', () => {
-    speechSynthesis.pause();                                          // Pause TTS on pause
-    isPlaying = false;
-    shouldContinueReading = false;
+elements.pauseButton.addEventListener('click', () => {
+    speechSynthesis.pause();
+    state.isPlaying = false;
+    state.shouldContinueReading = false;
     updateControls();
 });
 
-stopButton.addEventListener('click', () => {
-    speechSynthesis.cancel();                                         // Stop TTS on stop
-    isPlaying = false;
-    shouldContinueReading = false;
+elements.stopButton.addEventListener('click', () => {
+    speechSynthesis.cancel();
+    state.isPlaying = false;
+    state.shouldContinueReading = false;
     updateControls();
 });
 
-prevButton.addEventListener('click', () => {
-    if (currentPage > 1) {
-        currentPage--;                                                // Go to previous page
-        renderPage(currentPage);
+elements.prevButton.addEventListener('click', () => {
+    if (state.currentPage > 1) {
+        state.updateCurrentPage(state.currentPage - 1);
+        renderPage(state.currentPage);
     }
 });
 
-nextButton.addEventListener('click', () => {
-    if (currentPage < pdfDoc.numPages) {
-        currentPage++;                                                // Go to next page
-        renderPage(currentPage);
+elements.nextButton.addEventListener('click', () => {
+    if (state.currentPage < state.pdfDoc.numPages) {
+        state.updateCurrentPage(state.currentPage + 1);
+        renderPage(state.currentPage);
     }
 });
 
-voiceSelect.addEventListener('change', () => {
-    localStorage.setItem('selectedVoice', voiceSelect.value);         // Save selected voice to local storage
-    if (utterance) {
-        const selectedVoice = voiceSelect.value;
+elements.voiceSelect.addEventListener('change', () => {
+    VoiceManager.saveVoicePreference(elements.voiceSelect.value);
+    if (state.utterance) {
+        const selectedVoice = elements.voiceSelect.value;
         if (selectedVoice) {
-            utterance.voice = speechSynthesis.getVoices()[selectedVoice];  // Update utterance voice
+            state.utterance.voice = speechSynthesis.getVoices()[selectedVoice];
         }
     }
 });
+
+// Initialize voices
+speechSynthesis.onvoiceschanged = VoiceManager.loadVoices;
+VoiceManager.loadVoices();
