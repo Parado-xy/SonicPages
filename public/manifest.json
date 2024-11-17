@@ -1,0 +1,40 @@
+{
+    "name": "Sonic Pages",
+    "short_name": "SonicPages",
+    "description": "Convert PDF documents to speech with customizable voices and playback controls",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#007bff",
+    "orientation": "any",
+    "icons": [
+      {
+        "src": "logo.svg",
+        "type": "image/svg+xml",
+        "sizes": "any",
+        "purpose": "any"
+      }
+    ],
+    "categories": ["productivity", "utilities", "accessibility"],
+    "lang": "en-US",
+    "screenshots": [],
+    "shortcuts": [
+      {
+        "name": "Upload PDF",
+        "url": "/?action=upload",
+        "description": "Upload a new PDF document"
+      }
+    ],
+    "related_applications": [],
+    "prefer_related_applications": false,
+    "permissions": [
+      "microphone"
+    ],
+    "features": [
+      "Cross Platform",
+      "PDF to Speech",
+      "Voice Selection",
+      "Page Navigation",
+      "Offline Support"
+    ]
+  }

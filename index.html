@@ -7,6 +7,9 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.9.359/pdf.min.js"></script>
     <link rel="icon" href="logo.svg" type="image/svg+xml">
+    <link rel="manifest" href="manifest.json">
+    <link href="https://fonts.googleapis.com/css?family=Lato" rel="stylesheet" type="text/css">
+
 
     <style>
         .pdf-container {
@@ -54,6 +57,7 @@
             padding: 0;
             min-height: 100vh;
             position: relative;
+            font-family: 'Lato', sans-serif;
         }
 
         .content {
@@ -160,6 +164,79 @@
     <script src = 'index.js'></script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+       // Add this to your index.js file
+
+        class ServiceWorkerUpdateHandler {
+            constructor() {
+                this.registration = null;
+                this.updateFound = false;
+                
+                // Initialize update check
+                this.init();
+            }
+            
+            async init() {
+                if ('serviceWorker' in navigator) {
+                    try {
+                        this.registration = await navigator.serviceWorker.register('/service-worker.js');
+                        
+                        // Check for updates immediately
+                        this.checkForUpdate();
+                        
+                        // Check for updates periodically
+                        setInterval(() => this.checkForUpdate(), 1000 * 60 * 60); // Check every hour
+                        
+                    } catch (error) {
+                        console.error('ServiceWorker registration failed:', error);
+                    }
+                }
+            }
+            
+            async checkForUpdate() {
+                if (!this.registration) return;
+                
+                try {
+                    await this.registration.update();
+                    
+                    if (this.registration.waiting && !this.updateFound) {
+                        this.updateFound = true;
+                        this.showUpdateNotification();
+                    }
+                    
+                } catch (error) {
+                    console.error('Error checking for updates:', error);
+                }
+            }
+            
+            showUpdateNotification() {
+                // Create update notification
+                const alert = document.createElement('div');
+                alert.className = 'alert alert-info alert-dismissible fade show fixed-top';
+                alert.role = 'alert';
+                alert.innerHTML = `
+                    <strong>Update Available!</strong> 
+                    A new version of Sonic Pages is available. 
+                    <button type="button" class="btn btn-primary btn-sm ms-3" id="update-app">
+                        Update Now
+                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                `;
+                
+                document.body.prepend(alert);
+                
+                // Handle update button click
+                document.getElementById('update-app').addEventListener('click', () => {
+                    this.registration.waiting.postMessage('skipWaiting');
+                    window.location.reload();
+                });
+            }
+        }
+
+        // Initialize the update handler
+        const swUpdateHandler = new ServiceWorkerUpdateHandler();
+    </script>
 
 </body>
 </html>
