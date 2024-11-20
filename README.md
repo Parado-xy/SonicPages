@@ -4,7 +4,7 @@
 
 # Sonic Pages
 
-Sonic Pages is a web-based application that allows users to upload PDF documents and convert them into audio. The app provides a smooth, user-friendly interface with options to select different voices, navigate through pages, and toggle auto-flipping for a seamless listening experience.
+Sonic Pages is a web-based application that allows users to upload PDF documents and convert them into audio. The app provides a smooth, user-friendly interface with options to select different voices, navigate through pages, and toggle auto-flipping for a seamless listening experience. It is also a Progressive Web Application (PWA) With complete offline capability and can be installed on mobile due to the presence of a manifest.json file.
 
 ## Features
 
@@ -13,6 +13,7 @@ Sonic Pages is a web-based application that allows users to upload PDF documents
 - **Page Navigation**: Control the page flow using "Previous," "Next," and "Auto Flip" options.
 - **Playback Controls**: Start, pause, stop, and resume audio playback easily.
 - **Error Handling**: Provides clear error alerts if a file is invalid or any issues arise.
+- **Offline Capabilities**: Works completely offline after being installed as a PWA via the web.
 
 ## Tech Stack
 
