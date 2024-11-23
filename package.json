@@ -10,8 +10,13 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@notionhq/client": "^2.2.15",
+    "dotenv": "^16.4.5",
     "express": "^4.21.1",
+    "multer": "^1.4.5-lts.1",
     "path": "^0.12.7",
+    "pdf-parse": "^1.1.1",
+    "pdf-poppler": "^0.2.1",
     "say": "^0.16.0"
   }
 }

@@ -123,6 +123,22 @@ async function loadPDF(file) {
     } finally {
         elements.progressBar.style.display = 'none';
     }
+
+    ///// SEND FILE TO BACKEND:
+    const formData = new FormData();
+    formData.append("pdf", file);
+
+    const response = await fetch("/upload", {
+        method: "POST",
+        body: formData,
+    });
+
+    const result = await response.json();
+    if (response.ok) {
+        alert("PDF uploaded and added to Notion successfully!");
+    } else {
+        throw new Error(result.error || "Unknown error");
+    }
 }
 
 function readFileAsArrayBuffer(file) {

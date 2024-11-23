@@ -1,5 +1,5 @@
 // Cache version management
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v3';
 const CACHE_NAME = `SonicPages-${CACHE_VERSION}`;
 
 // Separate static and dynamic caches
