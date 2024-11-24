@@ -127,19 +127,36 @@ server.post('/user-data', async (req, res) => {
 
 
 // Serve the processed PDFs from the 'processed' directory
-server.use('/processed', express.static(path.join(__dirname, 'processed')));
+const decodeURIPlus = (str) => decodeURIComponent(str.replace(/\+/g, ' '));
 
-// Endpoint to get book details and the PDF file name
-server.get('/api/notion/book/:id', (req, res) => {
-    const bookId = req.params.id;
-    
-    // You can fetch book details from your database here
-    // Example response (replace with actual database query):
-    const bookDetails = {
-        id: bookId,
-        pdfFileName: `${bookId}.pdf` // Assuming the PDF file is named with the book ID
-    };
-})
+function processedUrlMiddleware(req, res, next) {
+    // Only process URLs containing '/processed/'
+    if (req.url.includes('/processed/')) {
+        try {
+            // Get the encoded filename part after '/processed/'
+            const encodedFilename = req.url.split('/processed/')[1];
+            
+            // Double decode to handle potential double encoding
+            const decodedOnce = decodeURIPlus(encodedFilename);
+            const decodedTwice = decodeURIPlus(decodedOnce);
+            
+            // Use the most decoded version that's still valid
+            const cleanedFilename = decodedTwice !== 'undefined' ? decodedTwice : decodedOnce;
+            
+            // Reconstruct the URL
+            req.url = `/processed/${cleanedFilename}`;
+            
+            console.log('Processed URL:', req.url);
+        } catch (error) {
+            console.error('Error processing URL:', error);
+        }
+    }
+    next();
+}
+
+// Add this middleware before your static file serving
+server.use(processedUrlMiddleware);
+server.use('/processed', express.static(path.join(__dirname, 'processed')));
 
 server.get('/api/notion/books', async (req, res)=> {
 

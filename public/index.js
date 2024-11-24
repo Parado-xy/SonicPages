@@ -116,7 +116,15 @@ function isValidBookName(bookName) {
 function getBookNameFromURL() {
     const urlParams = new URLSearchParams(window.location.search);
     const bookId = urlParams.get('bookId');
-    return bookId ? decodeURIComponent(bookId) : null;
+    if (!bookId) return null;
+    
+    // Double decode the book ID since it was double encoded when creating the URL
+    try {
+        return decodeURIComponent(decodeURIComponent(bookId));
+    } catch (error) {
+        console.error('Error decoding book name:', error);
+        return null;
+    }
 }
 
 // PDF loading from file upload
@@ -146,7 +154,7 @@ async function loadPDF(file) {
 
         const result = await response.json();
         if (response.ok) {
-            alert("PDF uploaded and added to Notion successfully!");
+            console.log("PDF uploaded and added to Notion successfully!");
         } else {
             throw new Error(result.error || "Unknown error");
         }
@@ -161,6 +169,10 @@ async function loadPDF(file) {
 // PDF loading from backend
 async function loadPDFFromBackend(bookName) {
     try {
+        if (!bookName) {
+            throw new Error('No book name provided');
+        }
+
         if (!isValidBookName(bookName)) {
             throw new Error('Invalid book name');
         }
@@ -170,7 +182,7 @@ async function loadPDFFromBackend(bookName) {
         
         // Double encode the book name to handle special characters properly
         const encodedBookName = encodeURIComponent(encodeURIComponent(bookName));
-        const response = await fetch(`processed/${encodedBookName}`);
+        const response = await fetch(`/processed/${encodedBookName}`);
         
         if (!response.ok) {
             throw new Error(`Failed to fetch PDF from server: ${response.status} ${response.statusText}`);
@@ -185,9 +197,18 @@ async function loadPDFFromBackend(bookName) {
         state.currentPage = savedPage;
         await renderPage(savedPage);
         updateControls();
+        
+        // Hide upload button if we successfully loaded a PDF from URL
+        if (elements.uploadButton) {
+            elements.uploadButton.style.display = 'none';
+        }
     } catch (error) {
         showError(`Error loading PDF: ${error.message}`);
         console.error('PDF loading error:', error);
+        // Show upload button if loading from URL fails
+        if (elements.uploadButton) {
+            elements.uploadButton.style.display = 'block';
+        }
     } finally {
         elements.progressBar.style.display = 'none';
     }
@@ -284,14 +305,14 @@ function updatePageCounter() {
 }
 
 // Event listeners
-elements.uploadButton.addEventListener('click', () => elements.pdfUpload.click());
+elements.uploadButton?.addEventListener('click', () => elements.pdfUpload.click());
 
-elements.pdfUpload.addEventListener('change', (e) => {
+elements.pdfUpload?.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) loadPDF(file);
 });
 
-elements.playButton.addEventListener('click', () => {
+elements.playButton?.addEventListener('click', () => {
     if (state.utterance) {
         state.isPlaying = true;
         state.shouldContinueReading = true;
@@ -300,35 +321,35 @@ elements.playButton.addEventListener('click', () => {
     }
 });
 
-elements.pauseButton.addEventListener('click', () => {
+elements.pauseButton?.addEventListener('click', () => {
     speechSynthesis.pause();
     state.isPlaying = false;
     state.shouldContinueReading = false;
     updateControls();
 });
 
-elements.stopButton.addEventListener('click', () => {
+elements.stopButton?.addEventListener('click', () => {
     speechSynthesis.cancel();
     state.isPlaying = false;
     state.shouldContinueReading = false;
     updateControls();
 });
 
-elements.prevButton.addEventListener('click', () => {
+elements.prevButton?.addEventListener('click', () => {
     if (state.currentPage > 1) {
         state.updateCurrentPage(state.currentPage - 1);
         renderPage(state.currentPage);
     }
 });
 
-elements.nextButton.addEventListener('click', () => {
+elements.nextButton?.addEventListener('click', () => {
     if (state.currentPage < state.pdfDoc.numPages) {
         state.updateCurrentPage(state.currentPage + 1);
         renderPage(state.currentPage);
     }
 });
 
-elements.voiceSelect.addEventListener('change', () => {
+elements.voiceSelect?.addEventListener('change', () => {
     VoiceManager.saveVoicePreference(elements.voiceSelect.value);
     if (state.utterance) {
         const selectedVoice = elements.voiceSelect.value;
@@ -348,7 +369,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Check for book in URL
         const bookName = getBookNameFromURL();
         if (bookName) {
+            console.log('Loading book from URL:', bookName);
             await loadPDFFromBackend(bookName);
+        } else {
+            console.log('No book specified in URL');
+            // Show upload button if no book is specified
+            if (elements.uploadButton) {
+                elements.uploadButton.style.display = 'block';
+            }
         }
     } catch (error) {
         console.error('Initialization error:', error);
