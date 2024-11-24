@@ -59,7 +59,9 @@ class PDFReaderState {
     updateCurrentPage(page) {
         if (this.currentFile) {
             this.currentPage = page;
-            this.bookCache[`${this.currentFile.name}_currentPage`] = page;
+            // Handle both File objects and string-based names
+            const fileName = this.currentFile.name || this.currentFile;
+            this.bookCache[`${fileName}_currentPage`] = page;
             this.saveBookCache();
         }
     }
@@ -102,7 +104,22 @@ function showError(message) {
     elements.errorAlert.style.display = 'block';
 }
 
-// PDF loading and rendering
+// Validation function for book names
+function isValidBookName(bookName) {
+    return bookName && 
+           bookName.endsWith('.pdf') && 
+           bookName.length < 1000 &&
+           !bookName.includes('../'); // Prevent directory traversal
+}
+
+// Function to get book name from URL
+function getBookNameFromURL() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const bookId = urlParams.get('bookId');
+    return bookId ? decodeURIComponent(bookId) : null;
+}
+
+// PDF loading from file upload
 async function loadPDF(file) {
     try {
         elements.progressBar.style.display = 'flex';
@@ -118,26 +135,61 @@ async function loadPDF(file) {
         await renderPage(savedPage);
         updateControls();
 
+        // Send file to backend
+        const formData = new FormData();
+        formData.append("pdf", file);
+
+        const response = await fetch("/upload", {
+            method: "POST",
+            body: formData,
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+            alert("PDF uploaded and added to Notion successfully!");
+        } else {
+            throw new Error(result.error || "Unknown error");
+        }
+
     } catch (error) {
         showError(`Error loading PDF: ${error.message}`);
     } finally {
         elements.progressBar.style.display = 'none';
     }
+}
 
-    ///// SEND FILE TO BACKEND:
-    const formData = new FormData();
-    formData.append("pdf", file);
+// PDF loading from backend
+async function loadPDFFromBackend(bookName) {
+    try {
+        if (!isValidBookName(bookName)) {
+            throw new Error('Invalid book name');
+        }
 
-    const response = await fetch("/upload", {
-        method: "POST",
-        body: formData,
-    });
-
-    const result = await response.json();
-    if (response.ok) {
-        alert("PDF uploaded and added to Notion successfully!");
-    } else {
-        throw new Error(result.error || "Unknown error");
+        elements.progressBar.style.display = 'flex';
+        elements.progressBarInner.style.width = '0%';
+        
+        // Double encode the book name to handle special characters properly
+        const encodedBookName = encodeURIComponent(encodeURIComponent(bookName));
+        const response = await fetch(`processed/${encodedBookName}`);
+        
+        if (!response.ok) {
+            throw new Error(`Failed to fetch PDF from server: ${response.status} ${response.statusText}`);
+        }
+        
+        const arrayBuffer = await response.arrayBuffer();
+        state.pdfDoc = await pdfjsLib.getDocument(arrayBuffer).promise;
+        state.currentFile = bookName; // Store the book name as the current file
+        
+        // Load saved page or start from beginning
+        const savedPage = state.bookCache[`${bookName}_currentPage`] || 1;
+        state.currentPage = savedPage;
+        await renderPage(savedPage);
+        updateControls();
+    } catch (error) {
+        showError(`Error loading PDF: ${error.message}`);
+        console.error('PDF loading error:', error);
+    } finally {
+        elements.progressBar.style.display = 'none';
     }
 }
 
@@ -286,6 +338,20 @@ elements.voiceSelect.addEventListener('change', () => {
     }
 });
 
-// Initialize voices
-speechSynthesis.onvoiceschanged = VoiceManager.loadVoices;
-VoiceManager.loadVoices();
+// Initialize the application
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        // Initialize voices
+        speechSynthesis.onvoiceschanged = VoiceManager.loadVoices;
+        VoiceManager.loadVoices();
+        
+        // Check for book in URL
+        const bookName = getBookNameFromURL();
+        if (bookName) {
+            await loadPDFFromBackend(bookName);
+        }
+    } catch (error) {
+        console.error('Initialization error:', error);
+        showError('Failed to initialize the PDF viewer');
+    }
+});

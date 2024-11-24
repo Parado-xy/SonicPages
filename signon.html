@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In - Sonic Pages</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.1/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=Lato" rel="stylesheet" type="text/css">
+    <style>
+        body {
+            font-family: 'Lato', sans-serif;
+            min-height: 100vh;
+            position: relative;
+            padding-bottom: 50px;
+            background-color: #f8f9fa;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header-gradient {
+            background: linear-gradient(to right, #ffa500, #ff6b6b);
+            color: white;
+            padding: 20px 0;
+        }
+
+        .app-logo {
+            width: 50px;
+            height: 50px;
+        }
+
+        .auth-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .auth-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            padding: 2rem;
+        }
+
+        .form-control {
+            border-radius: 20px;
+            padding: 12px 20px;
+            font-size: 1rem;
+        }
+
+        .auth-btn {
+            background: linear-gradient(to right, #ffa500, #ff6b6b);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 20px;
+            width: 100%;
+            font-weight: 500;
+            transition: opacity 0.2s;
+        }
+
+        .auth-btn:hover {
+            opacity: 0.9;
+            color: white;
+        }
+
+        .social-divider {
+            text-align: center;
+            position: relative;
+            margin: 25px 0;
+        }
+
+        .social-divider::before,
+        .social-divider::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            width: 45%;
+            height: 1px;
+            background-color: #dee2e6;
+        }
+
+        .social-divider::before { left: 0; }
+        .social-divider::after { right: 0; }
+
+        .social-btn {
+            border: 1px solid #dee2e6;
+            border-radius: 20px;
+            padding: 12px;
+            width: 100%;
+            margin-bottom: 10px;
+            background: white;
+            transition: background-color 0.2s;
+        }
+
+        .social-btn:hover {
+            background-color: #f8f9fa;
+        }
+
+        .toggle-form {
+            color: #ff6b6b;
+            text-decoration: none;
+        }
+
+        .toggle-form:hover {
+            color: #ffa500;
+        }
+
+        footer {
+            background: linear-gradient(to right, #ffa500, #ff6b6b);
+            color: white;
+            padding: 10px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: bold;
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+        }
+
+        .error-message {
+            color: #dc3545;
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+            display: none;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header-gradient">
+        <div class="container text-center">
+            <h1 class="display-5 mb-0 d-flex align-items-center justify-content-center">
+                <img src="logo.svg" alt="App Logo" class="app-logo me-3">
+                Sonic Pages
+            </h1>
+        </div>
+    </header>
+
+    <!-- Auth Container -->
+    <div class="auth-container">
+        <div class="auth-card">
+            <h2 class="text-center mb-4" id="formTitle">Sign In</h2>
+            
+            <form id="authForm" novalidate  action="user-data" method="post">
+                <div class="mb-3">
+                    <input type="email" class="form-control" id="emailInput" name = "email" placeholder="Email address" required>
+                    <div class="error-message" id="emailError">Please enter a valid email address</div>
+                </div>
+                
+                <div class="mb-3">
+                    <input type="password" class="form-control" id="passwordInput" name = 'password' placeholder="Password" required>
+                    <div class="error-message" id="passwordError">Password must be at least 6 characters</div>
+                </div>
+
+                <div class="mb-3 d-flex justify-content-end">
+                    <a href="#" class="toggle-form">Forgot password?</a>
+                </div>
+
+                <button type="submit" class="auth-btn mb-3">Sign In</button>
+
+                <div class="text-center">
+                    Don't have an account? <a href="#" class="toggle-form" id="toggleForm">Sign Up</a>
+                </div>
+
+                
+            </form>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        &copy; SonicPages 2024
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('authForm');
+            const emailInput = document.getElementById('emailInput');
+            const passwordInput = document.getElementById('passwordInput');
+            const emailError = document.getElementById('emailError');
+            const passwordError = document.getElementById('passwordError');
+            const toggleForm = document.getElementById('toggleForm');
+            const formTitle = document.getElementById('formTitle');
+
+
+            toggleForm.addEventListener('click', function(e) {
+                formTitle.textContent = isSignIn ? 'Sign In' : 'Sign Up';
+                toggleForm.textContent = isSignIn ? 'Sign Up' : 'Sign In';
+                const toggleText = isSignIn ? "Don't have an account? " : 'Already have an account? ';
+                toggleForm.parentElement.childNodes[0].textContent = toggleText;
+            });
+
+            form.addEventListener('submit', function(e) {
+                let isValid = true;
+
+                // Email validation
+                if (!emailInput.value || !emailInput.value.includes('@')) {
+                    emailError.style.display = 'block';
+                    isValid = false;
+                } else {
+                    emailError.style.display = 'none';
+                }
+
+                // Password validation
+                if (!passwordInput.value || passwordInput.value.length < 6) {
+                    passwordError.style.display = 'block';
+                    isValid = false;
+                } else {
+                    passwordError.style.display = 'none';
+                }
+
+                if (isValid) {
+                    // Here you would typically handle the form submission
+                    console.log('Form submitted:', {
+                        email: emailInput.value,
+                        password: passwordInput.value,
+                        isSignIn: isSignIn
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
