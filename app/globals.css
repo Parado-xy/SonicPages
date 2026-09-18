@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f8f5;
+  --foreground: #17211b;
+  --card: #ffffff;
+  --card-foreground: #17211b;
+  --muted: #eef1ec;
+  --muted-foreground: #68736c;
+  --border: #dfe5df;
+  --primary: #145c3e;
+  --primary-foreground: #f7fff9;
+  --accent: #dff6e8;
+  --accent-foreground: #124a34;
+  --ring: #2d8a60;
+  --danger: #b42318;
+}
+
+.dark {
+  --background: #0c120f;
+  --foreground: #edf5ef;
+  --card: #131b16;
+  --card-foreground: #edf5ef;
+  --muted: #1b251f;
+  --muted-foreground: #9ca9a0;
+  --border: #26342b;
+  --primary: #60d394;
+  --primary-foreground: #082116;
+  --accent: #193c2b;
+  --accent-foreground: #baf0d0;
+  --ring: #60d394;
+  --danger: #ff8a80;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-ring: var(--ring);
+  --color-danger: var(--danger);
+  --font-sans: "Inter", "SF Pro Display", "Segoe UI", sans-serif;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  color-scheme: light;
+  scroll-behavior: smooth;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 15% 0%, color-mix(in srgb, var(--accent) 52%, transparent), transparent 28rem),
+    var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--ring) 55%, transparent);
+  outline-offset: 2px;
+}

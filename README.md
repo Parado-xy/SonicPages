@@ -1,24 +1,30 @@
 # SonicPages
 
-SonicPages is a privacy-first PDF reader that renders documents and reads them aloud
-with the browser's built-in speech synthesis. In the current foundation release, a
-selected PDF stays in the browser and is not uploaded to the application server.
+SonicPages is being rebuilt as a private, accessible workspace for reading and
+listening to documents. This branch establishes the typed application and design
+foundation for the product.
 
-## Current features
+## Foundation features
 
-- Local PDF rendering with PDF.js
-- Browser text-to-speech and voice selection
-- Play, pause, stop, previous-page, and next-page controls
-- Optional automatic page progression
-- Reading-position and voice preferences stored locally
-- Installable progressive web application
+- Next.js App Router, React, and strict TypeScript
+- Tailwind CSS design tokens with light, dark, and system themes
+- Responsive desktop sidebar and mobile navigation
+- Home, library, reader-preview, and settings routes
+- Accessible loading, error, empty, and not-found states
+- Reusable button, badge, card, header, navigation, and empty-state components
+- ESLint, TypeScript, Vitest, production builds, dependency auditing, and CI
+- Baseline security and privacy headers
+
+The library and reader intentionally contain no fake documents. Authentication,
+database persistence, uploads, and document processing are introduced in subsequent
+phases.
 
 ## Local development
 
-Requirements: Node.js 20 or newer.
+Requirements: Node.js 20.9 or newer.
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -27,25 +33,29 @@ Open `http://localhost:3000`.
 ## Validation
 
 ```bash
-npm test
-npm audit
+npm run check
+npm audit --omit=dev --audit-level=high
 ```
+
+`npm run check` runs linting, strict type-checking, unit tests, and an optimized
+production build.
 
 ## Privacy and security
 
-The former Notion-backed account and library implementation has been removed. The
-application has no sign-in or server-side document storage until the replacement
-database, authentication, and object-storage architecture is introduced.
+SonicPages currently has no accounts, server-side document storage, or analytics.
+Never commit environment files, uploaded documents, generated thumbnails, credentials,
+or provider tokens. See [SECURITY.md](SECURITY.md) for reporting guidance.
 
-Never commit `.env` files, uploaded documents, generated thumbnails, credentials, or
-provider tokens. See [SECURITY.md](SECURITY.md) for reporting guidance.
+## Planned sequence
 
-## Rebuild roadmap
-
-This repository is being rebuilt in stages. Planned work includes a TypeScript
-application foundation, PostgreSQL-backed accounts and libraries, secure object
-storage, multi-format document ingestion, an improved reader, annotations, generated
-audio, and reliable offline support.
+1. Authentication and PostgreSQL-backed data model
+2. Secure storage and document ingestion
+3. Library experience
+4. Reader foundation
+5. Speech and audio engine
+6. Notes and reading tools
+7. Reliable PWA and offline support
+8. Production hardening
 
 ## License
 
