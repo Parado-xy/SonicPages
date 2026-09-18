@@ -16,9 +16,12 @@ later commit does not make the original secret safe.
 
 ## Uploaded documents
 
-The foundation release has no document upload or storage capability. Future document
-handling must use explicit ownership checks, validated file types, private object
-storage, and short-lived access URLs.
+Document handling uses explicit ownership checks, an allowlist of supported file
+types, private object storage, opaque per-user keys, short-lived upload policies, and
+short-lived download URLs. Upload completion verifies the stored object's size,
+content type, and leading file signature before making it available to the
+application. Full archive validation remains part of the isolated ingestion phase.
+Buckets must never be configured for public access.
 
 ## Authentication and ownership
 

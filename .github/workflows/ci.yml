@@ -51,6 +51,9 @@ jobs:
       - name: Apply database migrations
         run: npm run db:migrate
 
+      - name: Check migration drift
+        run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+
       - name: Lint
         run: npm run lint
 

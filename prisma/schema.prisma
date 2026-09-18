@@ -38,6 +38,13 @@ enum AudioJobStatus {
   CANCELLED
 }
 
+enum UploadStatus {
+  PENDING
+  COMPLETED
+  ABORTED
+  EXPIRED
+}
+
 model User {
   id                  String               @id @default(cuid())
   name                String
@@ -54,6 +61,7 @@ model User {
   collections         Collection[]
   playbackPreference  PlaybackPreference?
   audioGenerationJobs AudioGenerationJob[]
+  documentUploads     DocumentUpload[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -126,11 +134,31 @@ model Document {
   collections      CollectionDocument[]
   audioJobs        AudioGenerationJob[]
   audioSegments    AudioSegment[]
+  upload           DocumentUpload?
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
 
   @@index([ownerId, updatedAt])
   @@index([ownerId, status])
+}
+
+model DocumentUpload {
+  id               String       @id @default(cuid())
+  ownerId          String
+  documentId       String       @unique
+  storageKey       String       @unique
+  originalFilename String
+  contentType      String
+  sizeBytes        BigInt
+  status           UploadStatus @default(PENDING)
+  expiresAt        DateTime
+  completedAt      DateTime?
+  owner            User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  document         Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([ownerId, status, expiresAt])
 }
 
 model DocumentAsset {
