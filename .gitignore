@@ -1,3 +1,11 @@
-node_modules
-.vscode
-processed
+node_modules/
+.env
+.env.*
+!.env.example
+.vscode/
+coverage/
+processed/
+uploads/
+public/thumbnails/
+*.log
+.DS_Store

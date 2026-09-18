@@ -1,57 +1,52 @@
+# SonicPages
 
+SonicPages is a privacy-first PDF reader that renders documents and reads them aloud
+with the browser's built-in speech synthesis. In the current foundation release, a
+selected PDF stays in the browser and is not uploaded to the application server.
 
----
+## Current features
 
-# Sonic Pages
+- Local PDF rendering with PDF.js
+- Browser text-to-speech and voice selection
+- Play, pause, stop, previous-page, and next-page controls
+- Optional automatic page progression
+- Reading-position and voice preferences stored locally
+- Installable progressive web application
 
-Sonic Pages is a web-based application that allows users to upload PDF documents and convert them into audio. The app provides a smooth, user-friendly interface with options to select different voices, navigate through pages, and toggle auto-flipping for a seamless listening experience. It is also a Progressive Web Application (PWA) With complete offline capability and can be installed on mobile due to the presence of a manifest.json file.
+## Local development
 
-## Features
+Requirements: Node.js 20 or newer.
 
-- **PDF to Speech Conversion**: Upload any PDF, and Sonic Pages will read the content aloud.
-- **Customizable Voices**: Choose from a selection of voices to personalize the audio playback.
-- **Page Navigation**: Control the page flow using "Previous," "Next," and "Auto Flip" options.
-- **Playback Controls**: Start, pause, stop, and resume audio playback easily.
-- **Error Handling**: Provides clear error alerts if a file is invalid or any issues arise.
-- **Offline Capabilities**: Works completely offline after being installed as a PWA via the web.
+```bash
+npm install
+npm run dev
+```
 
-## Tech Stack
+Open `http://localhost:3000`.
 
-- HTML, CSS (Bootstrap 5), and JavaScript
-- [PDF.js](https://mozilla.github.io/pdf.js/) for rendering PDF pages
-- Web Speech API for text-to-speech functionality
-- SVG icons for an intuitive control panel
+## Validation
 
-## Setup
+```bash
+npm test
+npm audit
+```
 
-1. **Clone the Repository**:
-   ```bash
-   git clone https://github.com/Parado-xy/sonic-pages.git
-   cd sonic-pages
-   ```
+## Privacy and security
 
-2. **Run the Application**:
-   Assuming node is installed, run `npm init` then `npm start`
+The former Notion-backed account and library implementation has been removed. The
+application has no sign-in or server-side document storage until the replacement
+database, authentication, and object-storage architecture is introduced.
 
-## Usage
+Never commit `.env` files, uploaded documents, generated thumbnails, credentials, or
+provider tokens. See [SECURITY.md](SECURITY.md) for reporting guidance.
 
-1. **Upload PDF**: Click on "Upload PDF" to select a file. A preview of the document will appear on the screen.
-2. **Select Voice**: Choose a preferred voice from the dropdown menu for text-to-speech playback.
-3. **Playback Control**: Use "Play," "Pause," "Stop," and navigation buttons to control the audio.
-4. **Page Auto-Flip**: Enable or disable the auto-flip feature for continuous reading.
+## Rebuild roadmap
 
-## Future Development
-
-1. **Backend Integration for File Processing**: Move file processing to a server backend to enhance performance and allow additional file types like .txt and .docx.
-2. **Google Sign-In Authentication**: Add secure Google OAuth login for user access and to enable personalized experiences.
-3. **Audio Download Feature**: Allow users to download audio in chunks, with options for saving the entire document or specific sections.
-4. **Caching and Thumbnail Generation**: Implement a caching system to avoid repeated processing of previously parsed pages and generate PDF thumbnails.
-5. **Additional File Format Support**: Expand support to other file formats like .txt and .docx to enhance versatility.
-6. **Optimized Voice Selection**: Implement advanced voice options and settings, including pitch and speed customization.
+This repository is being rebuilt in stages. Planned work includes a TypeScript
+application foundation, PostgreSQL-backed accounts and libraries, secure object
+storage, multi-format document ingestion, an improved reader, annotations, generated
+audio, and reliable offline support.
 
 ## License
 
-MIT License
-
----
-
+MIT
