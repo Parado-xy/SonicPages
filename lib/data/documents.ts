@@ -20,6 +20,7 @@ export function listOwnedDocuments(userId: string) {
     include: {
       assets: { where: { kind: "COVER" }, take: 1 },
       readingProgress: { where: { userId }, take: 1 },
+      _count: { select: { sections: true } },
     },
   });
 }

@@ -13,6 +13,8 @@ foundation for the product.
 - PostgreSQL and Prisma data foundation
 - Private S3-compatible document uploads with signed, short-lived transfers
 - Server-enforced file validation, ownership checks, and per-user storage quotas
+- Durable PostgreSQL ingestion jobs with retries and stale-lock recovery
+- PDF, EPUB, DOCX, and TXT extraction into reader-ready sections
 - Protected library, reader-preview, and settings routes
 - Accessible loading, error, empty, and not-found states
 - Reusable button, badge, card, header, navigation, and empty-state components
@@ -33,6 +35,17 @@ npm ci
 npm run db:migrate
 npm run dev
 ```
+
+Run the ingestion worker in a separate process:
+
+```bash
+npm run worker:ingestion
+```
+
+In production, deploy this command as a continuously running worker using the same
+database and storage environment as the web service. Multiple workers can run safely;
+PostgreSQL row locking ensures a job is claimed by only one worker.
+Set `INGESTION_RUN_ONCE=true` for cron-style or health-check execution.
 
 Open `http://localhost:3000`.
 
@@ -70,10 +83,10 @@ be adjusted with `MAX_DOCUMENT_BYTES` and `USER_STORAGE_QUOTA_BYTES`.
 
 ## Data model
 
-The initial relational model covers Better Auth accounts and sessions, owned documents,
-assets, structured sections, reading progress, bookmarks, highlights, notes,
-collections, playback preferences, audio jobs, and audio segments. All document
-queries must include the authenticated owner ID.
+The relational model covers Better Auth accounts and sessions, owned documents,
+assets, durable ingestion jobs, structured sections, reading progress, bookmarks,
+highlights, notes, collections, playback preferences, audio jobs, and audio segments.
+All document queries must include the authenticated owner ID.
 
 ## Privacy and security
 
@@ -84,13 +97,12 @@ documents, generated thumbnails, credentials, or provider tokens. See
 
 ## Planned sequence
 
-1. Document ingestion pipeline
-2. Library experience
-3. Reader foundation
-4. Speech and audio engine
-5. Notes and reading tools
-6. Reliable PWA and offline support
-7. Production hardening
+1. Library experience
+2. Reader foundation
+3. Speech and audio engine
+4. Notes and reading tools
+5. Reliable PWA and offline support
+6. Production hardening
 
 ## License
 

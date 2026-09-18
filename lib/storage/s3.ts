@@ -54,6 +54,15 @@ export async function readStoredObjectPrefix(key: string) {
   return response.Body?.transformToByteArray() ?? new Uint8Array();
 }
 
+export async function downloadStoredObject(key: string) {
+  const { client, environment } = createClient();
+  const response = await client.send(
+    new GetObjectCommand({ Bucket: environment.S3_BUCKET, Key: key }),
+  );
+  if (!response.Body) throw new Error("The stored document is empty.");
+  return response.Body.transformToByteArray();
+}
+
 export async function deleteStoredObject(key: string) {
   const { client, environment } = createClient();
   await client.send(new DeleteObjectCommand({ Bucket: environment.S3_BUCKET, Key: key }));

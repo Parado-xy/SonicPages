@@ -45,6 +45,14 @@ enum UploadStatus {
   EXPIRED
 }
 
+enum IngestionJobStatus {
+  QUEUED
+  PROCESSING
+  RETRYING
+  COMPLETED
+  FAILED
+}
+
 model User {
   id                  String               @id @default(cuid())
   name                String
@@ -112,19 +120,19 @@ model Verification {
 }
 
 model Document {
-  id               String               @id @default(cuid())
+  id               String                @id @default(cuid())
   ownerId          String
   title            String
   author           String?
-  description      String?              @db.Text
+  description      String?               @db.Text
   format           DocumentFormat
-  status           DocumentStatus       @default(PENDING)
+  status           DocumentStatus        @default(PENDING)
   originalFilename String
   mimeType         String
   sizeBytes        BigInt
   pageCount        Int?
-  failureReason    String?              @db.Text
-  owner            User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  failureReason    String?               @db.Text
+  owner            User                  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   assets           DocumentAsset[]
   sections         DocumentSection[]
   readingProgress  ReadingProgress[]
@@ -135,11 +143,30 @@ model Document {
   audioJobs        AudioGenerationJob[]
   audioSegments    AudioSegment[]
   upload           DocumentUpload?
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+  ingestionJob     DocumentIngestionJob?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
 
   @@index([ownerId, updatedAt])
   @@index([ownerId, status])
+}
+
+model DocumentIngestionJob {
+  id          String             @id @default(cuid())
+  documentId  String             @unique
+  status      IngestionJobStatus @default(QUEUED)
+  attempts    Int                @default(0)
+  maxAttempts Int                @default(3)
+  runAfter    DateTime           @default(now())
+  lockedAt    DateTime?
+  lastError   String?            @db.Text
+  completedAt DateTime?
+  document    Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([status, runAfter])
+  @@index([lockedAt])
 }
 
 model DocumentUpload {

@@ -24,7 +24,7 @@ export async function POST(_request: Request, context: RouteContext) {
   });
   if (!upload) return NextResponse.json({ error: "Upload not found." }, { status: 404 });
   if (upload.status === "COMPLETED") {
-    return NextResponse.json({ documentId: upload.documentId, status: "PENDING" });
+    return NextResponse.json({ documentId: upload.documentId, status: "PROCESSING" });
   }
   if (upload.status !== "PENDING" || upload.expiresAt < new Date()) {
     return NextResponse.json({ error: "This upload has expired." }, { status: 410 });
@@ -63,9 +63,16 @@ export async function POST(_request: Request, context: RouteContext) {
         where: { id: upload.id },
         data: { status: "COMPLETED", completedAt: new Date() },
       }),
+      prisma.document.update({
+        where: { id: upload.documentId },
+        data: { status: "PROCESSING", failureReason: null },
+      }),
+      prisma.documentIngestionJob.create({
+        data: { documentId: upload.documentId },
+      }),
     ]);
 
-    return NextResponse.json({ documentId: upload.documentId, status: "PENDING" });
+    return NextResponse.json({ documentId: upload.documentId, status: "PROCESSING" });
   } catch (error) {
     console.error("Unable to verify document upload", error);
     return NextResponse.json({ error: "Unable to verify the upload." }, { status: 500 });

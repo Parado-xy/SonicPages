@@ -23,6 +23,11 @@ content type, and leading file signature before making it available to the
 application. Full archive validation remains part of the isolated ingestion phase.
 Buckets must never be configured for public access.
 
+Ingestion runs outside the web process. EPUB and DOCX archives are rejected when
+paths attempt traversal, entry counts exceed the safety limit, or declared expanded
+size exceeds 200 MiB. Extracted text is capped before persistence. Failed jobs retry
+with bounded backoff and expose sanitized errors without leaking storage credentials.
+
 ## Authentication and ownership
 
 Authentication uses OAuth or passwordless email with database-backed sessions.
