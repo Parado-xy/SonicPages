@@ -18,6 +18,7 @@ ADD COLUMN "lockedAt" TIMESTAMP(3);
 
 UPDATE "AudioGenerationJob" SET "requestKey" = "id" WHERE "requestKey" IS NULL;
 ALTER TABLE "AudioGenerationJob" ALTER COLUMN "requestKey" SET NOT NULL;
+ALTER TABLE "AudioGenerationJob" ALTER COLUMN "model" DROP DEFAULT;
 
 DROP INDEX IF EXISTS "AudioSegment_storageKey_key";
 ALTER TABLE "AudioSegment"
