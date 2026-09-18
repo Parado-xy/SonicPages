@@ -1,0 +1,315 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DocumentFormat {
+  PDF
+  EPUB
+  DOCX
+  TXT
+}
+
+enum DocumentStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+  ARCHIVED
+}
+
+enum AssetKind {
+  ORIGINAL
+  COVER
+  THUMBNAIL
+  EXTRACTED_TEXT
+  AUDIO
+}
+
+enum AudioJobStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model User {
+  id                  String               @id @default(cuid())
+  name                String
+  email               String               @unique
+  emailVerified       Boolean              @default(false)
+  image               String?
+  accounts            Account[]
+  sessions            Session[]
+  documents           Document[]
+  readingProgress     ReadingProgress[]
+  bookmarks           Bookmark[]
+  highlights          Highlight[]
+  notes               Note[]
+  collections         Collection[]
+  playbackPreference  PlaybackPreference?
+  audioGenerationJobs AudioGenerationJob[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?   @db.Text
+  refreshToken          String?   @db.Text
+  idToken               String?   @db.Text
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+model Document {
+  id               String               @id @default(cuid())
+  ownerId          String
+  title            String
+  author           String?
+  description      String?              @db.Text
+  format           DocumentFormat
+  status           DocumentStatus       @default(PENDING)
+  originalFilename String
+  mimeType         String
+  sizeBytes        BigInt
+  pageCount        Int?
+  failureReason    String?              @db.Text
+  owner            User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  assets           DocumentAsset[]
+  sections         DocumentSection[]
+  readingProgress  ReadingProgress[]
+  bookmarks        Bookmark[]
+  highlights       Highlight[]
+  notes            Note[]
+  collections      CollectionDocument[]
+  audioJobs        AudioGenerationJob[]
+  audioSegments    AudioSegment[]
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@index([ownerId, updatedAt])
+  @@index([ownerId, status])
+}
+
+model DocumentAsset {
+  id          String    @id @default(cuid())
+  documentId  String
+  kind        AssetKind
+  storageKey  String    @unique
+  contentType String
+  byteSize    BigInt
+  checksum    String?
+  document    Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@index([documentId, kind])
+}
+
+model DocumentSection {
+  id         String         @id @default(cuid())
+  documentId String
+  index      Int
+  title      String?
+  text       String         @db.Text
+  pageStart  Int?
+  pageEnd    Int?
+  document   Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  bookmarks  Bookmark[]
+  highlights Highlight[]
+  notes      Note[]
+  audio      AudioSegment[]
+  createdAt  DateTime       @default(now())
+
+  @@unique([documentId, index])
+  @@index([documentId])
+}
+
+model ReadingProgress {
+  id              String   @id @default(cuid())
+  userId          String
+  documentId      String
+  page            Int?
+  sectionIndex    Int?
+  characterOffset Int      @default(0)
+  percent         Float    @default(0)
+  positionSeconds Int?
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, documentId])
+  @@index([documentId])
+}
+
+model Bookmark {
+  id         String           @id @default(cuid())
+  userId     String
+  documentId String
+  sectionId  String?
+  page       Int?
+  label      String?
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document   Document         @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  section    DocumentSection? @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  createdAt  DateTime         @default(now())
+
+  @@index([userId, documentId])
+  @@index([sectionId])
+}
+
+model Highlight {
+  id           String           @id @default(cuid())
+  userId       String
+  documentId   String
+  sectionId    String?
+  page         Int?
+  startOffset  Int
+  endOffset    Int
+  selectedText String           @db.Text
+  color        String           @default("yellow")
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document     Document         @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  section      DocumentSection? @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([userId, documentId])
+  @@index([sectionId])
+}
+
+model Note {
+  id         String           @id @default(cuid())
+  userId     String
+  documentId String
+  sectionId  String?
+  page       Int?
+  content    String           @db.Text
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document   Document         @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  section    DocumentSection? @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@index([userId, documentId])
+  @@index([sectionId])
+}
+
+model Collection {
+  id          String               @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents   CollectionDocument[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model CollectionDocument {
+  collectionId String
+  documentId   String
+  position     Int        @default(0)
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  document     Document   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  addedAt      DateTime   @default(now())
+
+  @@id([collectionId, documentId])
+  @@index([documentId])
+}
+
+model PlaybackPreference {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  voiceId     String?
+  rate        Float    @default(1)
+  pitch       Float    @default(1)
+  autoAdvance Boolean  @default(true)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AudioGenerationJob {
+  id            String         @id @default(cuid())
+  documentId    String
+  requestedById String
+  provider      String
+  voiceId       String
+  status        AudioJobStatus @default(QUEUED)
+  errorMessage  String?        @db.Text
+  startedAt     DateTime?
+  completedAt   DateTime?
+  document      Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  requestedBy   User           @relation(fields: [requestedById], references: [id], onDelete: Cascade)
+  segments      AudioSegment[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([documentId, status])
+  @@index([requestedById, createdAt])
+}
+
+model AudioSegment {
+  id          String             @id @default(cuid())
+  jobId       String
+  documentId  String
+  sectionId   String?
+  index       Int
+  storageKey  String             @unique
+  durationMs  Int
+  contentType String
+  byteSize    BigInt
+  job         AudioGenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  document    Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  section     DocumentSection?   @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  createdAt   DateTime           @default(now())
+
+  @@unique([jobId, index])
+  @@index([documentId])
+  @@index([sectionId])
+}
