@@ -1,5 +1,6 @@
 import {
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
   S3Client,
@@ -66,6 +67,20 @@ export async function downloadStoredObject(key: string) {
 export async function deleteStoredObject(key: string) {
   const { client, environment } = createClient();
   await client.send(new DeleteObjectCommand({ Bucket: environment.S3_BUCKET, Key: key }));
+}
+
+export async function deleteStoredObjects(keys: string[]) {
+  if (!keys.length) return;
+  const { client, environment } = createClient();
+  for (let index = 0; index < keys.length; index += 1_000) {
+    const response = await client.send(
+      new DeleteObjectsCommand({
+        Bucket: environment.S3_BUCKET,
+        Delete: { Objects: keys.slice(index, index + 1_000).map((Key) => ({ Key })), Quiet: true },
+      }),
+    );
+    if (response.Errors?.length) throw new Error("One or more stored assets could not be deleted.");
+  }
 }
 
 export async function createDocumentDownload(key: string) {

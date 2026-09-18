@@ -15,6 +15,7 @@ foundation for the product.
 - Server-enforced file validation, ownership checks, and per-user storage quotas
 - Durable PostgreSQL ingestion jobs with retries and stale-lock recovery
 - PDF, EPUB, DOCX, and TXT extraction into reader-ready sections
+- Searchable, filterable library with collections, grid/list views, progress, and safe document actions
 - Protected library, reader-preview, and settings routes
 - Accessible loading, error, empty, and not-found states
 - Reusable button, badge, card, header, navigation, and empty-state components
@@ -97,12 +98,11 @@ documents, generated thumbnails, credentials, or provider tokens. See
 
 ## Planned sequence
 
-1. Library experience
-2. Reader foundation
-3. Speech and audio engine
-4. Notes and reading tools
-5. Reliable PWA and offline support
-6. Production hardening
+1. Reader foundation
+2. Speech and audio engine
+3. Notes and reading tools
+4. Reliable PWA and offline support
+5. Production hardening
 
 ## License
 

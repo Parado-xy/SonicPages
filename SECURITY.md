@@ -33,3 +33,6 @@ with bounded backoff and expose sanitized errors without leaking storage credent
 Authentication uses OAuth or passwordless email with database-backed sessions.
 Application queries for user-owned resources must include the authenticated user ID;
 knowing a document identifier must never be sufficient to retrieve or mutate it.
+Collection membership validates ownership of both the collection and document.
+Document deletion removes private object-storage assets before deleting relational
+metadata so user data is not silently orphaned.
