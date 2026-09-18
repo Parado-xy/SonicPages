@@ -12,7 +12,10 @@ export function findOwnedDocument(userId: string, documentId: string) {
 
 export function listOwnedDocuments(userId: string) {
   return prisma.document.findMany({
-    where: { ownerId: userId },
+    where: {
+      ownerId: userId,
+      OR: [{ upload: null }, { upload: { is: { status: "COMPLETED" } } }],
+    },
     orderBy: { updatedAt: "desc" },
     include: {
       assets: { where: { kind: "COVER" }, take: 1 },
