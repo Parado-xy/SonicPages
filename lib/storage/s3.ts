@@ -3,6 +3,7 @@ import {
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
 import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
@@ -90,4 +91,15 @@ export async function createDocumentDownload(key: string) {
     new GetObjectCommand({ Bucket: environment.S3_BUCKET, Key: key }),
     { expiresIn: 5 * 60 },
   );
+}
+
+export async function storeGeneratedAudio(key: string, bytes: Uint8Array, contentType: string) {
+  const { client, environment } = createClient();
+  await client.send(new PutObjectCommand({
+    Bucket: environment.S3_BUCKET,
+    Key: key,
+    Body: bytes,
+    ContentType: contentType,
+    CacheControl: "private, max-age=31536000, immutable",
+  }));
 }

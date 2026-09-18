@@ -33,6 +33,7 @@ enum AssetKind {
 enum AudioJobStatus {
   QUEUED
   PROCESSING
+  RETRYING
   COMPLETED
   FAILED
   CANCELLED
@@ -334,7 +335,8 @@ model CollectionDocument {
 model PlaybackPreference {
   id          String   @id @default(cuid())
   userId      String   @unique
-  voiceId     String?
+  provider    String   @default("openai")
+  voiceId     String   @default("coral")
   rate        Float    @default(1)
   pitch       Float    @default(1)
   autoAdvance Boolean  @default(true)
@@ -348,9 +350,18 @@ model AudioGenerationJob {
   documentId    String
   requestedById String
   provider      String
+  model         String
   voiceId       String
+  requestKey    String         @unique
   status        AudioJobStatus @default(QUEUED)
   errorMessage  String?        @db.Text
+  characterCount Int           @default(0)
+  estimatedCostMicros Int      @default(0)
+  actualCostMicros Int?
+  attempts      Int            @default(0)
+  maxAttempts   Int            @default(3)
+  runAfter      DateTime       @default(now())
+  lockedAt      DateTime?
   startedAt     DateTime?
   completedAt   DateTime?
   document      Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
@@ -361,6 +372,8 @@ model AudioGenerationJob {
 
   @@index([documentId, status])
   @@index([requestedById, createdAt])
+  @@index([status, runAfter])
+  @@index([lockedAt])
 }
 
 model AudioSegment {
@@ -369,7 +382,10 @@ model AudioSegment {
   documentId  String
   sectionId   String?
   index       Int
-  storageKey  String             @unique
+  storageKey  String
+  startOffset Int                @default(0)
+  endOffset   Int                @default(0)
+  textHash    String
   durationMs  Int
   contentType String
   byteSize    BigInt

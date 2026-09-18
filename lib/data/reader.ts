@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getOwnedAudioState } from "@/lib/audio/jobs";
 
 export const defaultReaderPreference = {
   fontFamily: "serif",
@@ -37,7 +38,11 @@ export async function getOwnedReaderDocument(userId: string, documentId: string,
     where: { documentId, index: sectionIndex, document: { ownerId: userId } },
     select: { id: true, index: true, title: true, text: true, pageStart: true, pageEnd: true },
   });
-  const preference = await prisma.readerPreference.findUnique({ where: { userId } });
+  const [preference, playbackPreference, audioJob] = await Promise.all([
+    prisma.readerPreference.findUnique({ where: { userId } }),
+    prisma.playbackPreference.findUnique({ where: { userId } }),
+    getOwnedAudioState(userId, documentId),
+  ]);
   if (!section) return null;
 
   return {
@@ -46,6 +51,14 @@ export async function getOwnedReaderDocument(userId: string, documentId: string,
     section,
     progress: document.readingProgress[0] ?? { sectionIndex: 0, characterOffset: 0, percent: 0 },
     preference: preference ?? defaultReaderPreference,
+    playbackPreference: playbackPreference ?? { provider: "openai", voiceId: "coral", rate: 1, pitch: 1, autoAdvance: true },
+    audioJob: audioJob ? {
+      id: audioJob.id,
+      status: audioJob.status,
+      voiceId: audioJob.voiceId,
+      errorMessage: audioJob.errorMessage,
+      segments: audioJob.segments.map((segment) => ({ ...segment, url: `/api/audio/segments/${segment.id}` })),
+    } : null,
   };
 }
 

@@ -15,6 +15,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "worker:ingestion": "tsx scripts/ingestion-worker.ts",
+    "worker:audio": "tsx scripts/audio-worker.ts",
     "check": "npm run db:validate && npm run lint && npm run typecheck && npm test && npm run build"
   },
   "engines": {
