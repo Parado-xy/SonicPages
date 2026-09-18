@@ -57,6 +57,9 @@ jobs:
       - name: Smoke-test ingestion worker
         run: INGESTION_RUN_ONCE=true npm run worker:ingestion
 
+      - name: Smoke-test audio worker
+        run: AUDIO_RUN_ONCE=true npm run worker:audio
+
       - name: Lint
         run: npm run lint
 

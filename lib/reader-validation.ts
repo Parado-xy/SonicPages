@@ -4,6 +4,7 @@ export const readingProgressSchema = z.object({
   sectionIndex: z.number().int().nonnegative(),
   characterOffset: z.number().int().nonnegative().default(0),
   percent: z.number().min(0).max(100),
+  positionSeconds: z.number().int().nonnegative().optional(),
 });
 
 export const readerPreferenceSchema = z.object({

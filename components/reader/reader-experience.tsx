@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { AudioPlayer } from "@/components/reader/audio-player";
 import { cn } from "@/lib/utils";
 
 type SectionSummary = { id: string; index: number; title: string | null; pageStart: number | null; pageEnd: number | null };
@@ -16,6 +17,8 @@ type Props = {
   section: SectionSummary & { text: string };
   progress: { sectionIndex: number | null; characterOffset: number; percent: number };
   preference: Preference;
+  playbackPreference: { provider: string; voiceId: string; rate: number; pitch: number; autoAdvance: boolean };
+  audioJob: { id: string; status: string; voiceId: string; errorMessage: string | null; segments: { id: string; sectionId: string | null; index: number; durationMs: number; startOffset: number; endOffset: number; url: string }[] } | null;
 };
 
 const themeStyles = {
@@ -24,7 +27,7 @@ const themeStyles = {
   night: { background: "#111815", color: "#dfe9e1" },
 } as const;
 
-export function ReaderExperience({ document, sections, section, progress, preference: initialPreference }: Props) {
+export function ReaderExperience({ document, sections, section, progress, preference: initialPreference, playbackPreference, audioJob }: Props) {
   const router = useRouter();
   const [preference, setPreference] = useState(initialPreference);
   const [tocOpen, setTocOpen] = useState(false);
@@ -117,7 +120,7 @@ export function ReaderExperience({ document, sections, section, progress, prefer
           </nav>
         </aside>
 
-        <main className="min-w-0 flex-1 px-5 py-10 sm:px-10 lg:py-16">
+        <main className="min-w-0 flex-1 px-5 pb-36 pt-10 sm:px-10 lg:pt-16">
           <article className="mx-auto" style={{ maxWidth: preference.contentWidth, fontFamily: preference.fontFamily === "serif" ? "Georgia, 'Times New Roman', serif" : "Inter, 'Segoe UI', sans-serif", fontSize: preference.fontSize, lineHeight: preference.lineHeight }}>
             <div className="mb-10 border-b border-current/10 pb-7"><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] opacity-55"><BookOpen className="size-4" />{document.format}</div><h1 className="mt-4 text-3xl font-semibold leading-tight sm:text-4xl">{section.title || document.title}</h1>{document.author ? <p className="mt-3 text-base opacity-60">{document.author}</p> : null}</div>
             <div className="reader-copy">{paragraphs(section.text).map((paragraph, index) => <p key={index}>{paragraph}</p>)}</div>
@@ -127,6 +130,7 @@ export function ReaderExperience({ document, sections, section, progress, prefer
       </div>
 
       {settingsOpen ? <ReaderSettings preference={preference} update={updatePreference} close={() => setSettingsOpen(false)} /> : null}
+      <AudioPlayer key={section.id} documentId={document.id} sectionId={section.id} sectionIndex={section.index} sectionCount={sections.length} initialJob={audioJob} initialPreference={playbackPreference} onAdvance={() => next && navigate(next.index)} />
     </div>
   );
 }
