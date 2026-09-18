@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 
 import { auth } from "@/auth";
 import { UploadDocument } from "@/components/library/upload-document";
+import { ProcessingRefresh, RetryIngestion } from "@/components/library/processing-controls";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -15,9 +16,13 @@ export const metadata = { title: "Library" };
 export default async function LibraryPage() {
   const session = await auth.api.getSession({ headers: await headers() });
   const documents = session?.user.id ? await listOwnedDocuments(session.user.id) : [];
+  const processing = documents.some((document) =>
+    ["PENDING", "PROCESSING"].includes(document.status),
+  );
 
   return (
     <div className="mx-auto w-full max-w-6xl">
+      <ProcessingRefresh active={processing} />
       <PageHeader
         eyebrow="Your workspace"
         title="Library"
@@ -37,9 +42,21 @@ export default async function LibraryPage() {
                 </div>
                 <h2 className="mt-6 line-clamp-2 font-semibold">{document.title}</h2>
                 <p className="mt-2 truncate text-sm text-muted-foreground">{document.originalFilename}</p>
+                {document.status === "FAILED" && document.failureReason ? (
+                  <p className="mt-3 line-clamp-2 text-xs leading-5 text-destructive">
+                    {document.failureReason}
+                  </p>
+                ) : null}
                 <div className="mt-5 flex items-center justify-between border-t pt-4 text-xs text-muted-foreground">
                   <span>{formatBytes(document.sizeBytes)}</span>
-                  <span className="flex items-center gap-1.5"><Clock3 className="size-3.5" /> Queued</span>
+                  {document.status === "FAILED" ? (
+                    <RetryIngestion documentId={document.id} />
+                  ) : (
+                    <span className="flex items-center gap-1.5">
+                      <Clock3 className={document.status === "PROCESSING" ? "size-3.5 animate-pulse" : "size-3.5"} />
+                      {statusLabel(document.status, document._count.sections)}
+                    </span>
+                  )}
                 </div>
               </Card>
             ))}
@@ -55,4 +72,11 @@ export default async function LibraryPage() {
       </div>
     </div>
   );
+}
+
+function statusLabel(status: string, sections: number) {
+  if (status === "READY") return `${sections} section${sections === 1 ? "" : "s"}`;
+  if (status === "PROCESSING") return "Processing";
+  if (status === "FAILED") return "Needs attention";
+  return "Queued";
 }
