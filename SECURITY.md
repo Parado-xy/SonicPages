@@ -16,5 +16,6 @@ later commit does not make the original secret safe.
 
 ## Uploaded documents
 
-The current application processes PDFs entirely in the browser. Documents selected
-in the reader are not uploaded to the SonicPages server.
+The foundation release has no document upload or storage capability. Future document
+handling must use explicit ownership checks, validated file types, private object
+storage, and short-lived access URLs.
