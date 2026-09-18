@@ -54,7 +54,7 @@ export default async function LibraryPage({ searchParams }: PageProps) {
                     <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary"><FileText className="size-5" /></div>
                     <div className="flex items-center gap-2"><Badge variant="outline">{document.format}</Badge><DocumentActions documentId={document.id} title={document.title} collections={collectionOptions} /></div>
                   </div>
-                  <h2 className="mt-6 line-clamp-2 font-semibold">{document.title}</h2>
+                  <h2 className="mt-6 line-clamp-2 font-semibold">{document.status === "READY" ? <Link href={`/reader/${document.id}` as never} className="hover:text-primary hover:underline">{document.title}</Link> : document.title}</h2>
                   <p className="mt-1 truncate text-sm text-muted-foreground">{document.author || document.originalFilename}</p>
                   <CollectionLabels names={document.collections.map((membership) => membership.collection.name)} />
                   {document.status === "FAILED" && document.failureReason ? <p className="mt-3 line-clamp-2 text-xs leading-5 text-danger">{document.failureReason}</p> : null}
@@ -63,7 +63,7 @@ export default async function LibraryPage({ searchParams }: PageProps) {
                 </Card>
               ) : (
                 <Card key={document.id} className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
-                  <div className="flex min-w-0 flex-1 items-center gap-4"><div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary"><FileText className="size-5" /></div><div className="min-w-0"><h2 className="truncate font-semibold">{document.title}</h2><p className="mt-1 truncate text-sm text-muted-foreground">{document.author || document.originalFilename}</p></div></div>
+                  <div className="flex min-w-0 flex-1 items-center gap-4"><div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary"><FileText className="size-5" /></div><div className="min-w-0"><h2 className="truncate font-semibold">{document.status === "READY" ? <Link href={`/reader/${document.id}` as never} className="hover:text-primary hover:underline">{document.title}</Link> : document.title}</h2><p className="mt-1 truncate text-sm text-muted-foreground">{document.author || document.originalFilename}</p></div></div>
                   <div className="flex items-center justify-between gap-4 sm:justify-end"><Badge variant="outline">{document.format}</Badge><ReadingProgress percent={document.readingProgress[0]?.percent} compact /><span className="hidden text-xs text-muted-foreground md:block">{formatBytes(document.sizeBytes)}</span><DocumentStatus document={document} /><DocumentActions documentId={document.id} title={document.title} collections={collectionOptions} /></div>
                 </Card>
               );

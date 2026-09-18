@@ -16,6 +16,9 @@ foundation for the product.
 - Durable PostgreSQL ingestion jobs with retries and stale-lock recovery
 - PDF, EPUB, DOCX, and TXT extraction into reader-ready sections
 - Searchable, filterable library with collections, grid/list views, progress, and safe document actions
+- Responsive document reader with section navigation and automatic progress saving
+- Persisted typography, content-width, and paper/sepia/night reading preferences
+- Keyboard navigation and resume-reading behavior
 - Protected library, reader-preview, and settings routes
 - Accessible loading, error, empty, and not-found states
 - Reusable button, badge, card, header, navigation, and empty-state components
@@ -98,11 +101,10 @@ documents, generated thumbnails, credentials, or provider tokens. See
 
 ## Planned sequence
 
-1. Reader foundation
-2. Speech and audio engine
-3. Notes and reading tools
-4. Reliable PWA and offline support
-5. Production hardening
+1. Speech and audio engine
+2. Notes and reading tools
+3. Reliable PWA and offline support
+4. Production hardening
 
 ## License
 

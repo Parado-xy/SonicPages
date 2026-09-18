@@ -36,3 +36,6 @@ knowing a document identifier must never be sufficient to retrieve or mutate it.
 Collection membership validates ownership of both the collection and document.
 Document deletion removes private object-storage assets before deleting relational
 metadata so user data is not silently orphaned.
+Reader routes return only READY documents owned by the authenticated user. Section
+navigation and progress updates verify document ownership server-side; knowing a
+document or section identifier never grants read access.
