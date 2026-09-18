@@ -77,6 +77,18 @@ body {
   color: var(--primary-foreground);
 }
 
+.reader-copy p {
+  margin-block: 0 1.35em;
+}
+
+.reader-copy p:first-child::first-letter {
+  float: left;
+  margin-right: 0.1em;
+  font-size: 3.4em;
+  font-weight: 650;
+  line-height: 0.88;
+}
+
 :focus-visible {
   outline: 3px solid color-mix(in srgb, var(--ring) 55%, transparent);
   outline-offset: 2px;
