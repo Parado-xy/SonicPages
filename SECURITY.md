@@ -19,3 +19,9 @@ later commit does not make the original secret safe.
 The foundation release has no document upload or storage capability. Future document
 handling must use explicit ownership checks, validated file types, private object
 storage, and short-lived access URLs.
+
+## Authentication and ownership
+
+Authentication uses OAuth or passwordless email with database-backed sessions.
+Application queries for user-owned resources must include the authenticated user ID;
+knowing a document identifier must never be sufficient to retrieve or mutate it.

@@ -12,6 +12,23 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sonicpages
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sonicpages"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sonicpages
+      AUTH_SECRET: ci-only-secret-with-at-least-32-characters
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -27,6 +44,12 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      - name: Validate database schema
+        run: npm run db:validate
+
+      - name: Apply database migrations
+        run: npm run db:migrate
 
       - name: Lint
         run: npm run lint
