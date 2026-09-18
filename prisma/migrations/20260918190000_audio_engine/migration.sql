@@ -26,6 +26,8 @@ ADD COLUMN "startOffset" INTEGER NOT NULL DEFAULT 0,
 ADD COLUMN "endOffset" INTEGER NOT NULL DEFAULT 0,
 ADD COLUMN "textHash" TEXT NOT NULL DEFAULT '';
 
+ALTER TABLE "AudioSegment" ALTER COLUMN "textHash" DROP DEFAULT;
+
 CREATE UNIQUE INDEX "AudioGenerationJob_requestKey_key" ON "AudioGenerationJob"("requestKey");
 CREATE INDEX "AudioGenerationJob_status_runAfter_idx" ON "AudioGenerationJob"("status", "runAfter");
 CREATE INDEX "AudioGenerationJob_lockedAt_idx" ON "AudioGenerationJob"("lockedAt");
