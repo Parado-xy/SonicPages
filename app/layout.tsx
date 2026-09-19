@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { ThemeProvider } from "@/components/theme-provider";
+import { PwaManager } from "@/components/pwa/pwa-manager";
 
 import "./globals.css";
 
@@ -13,6 +14,9 @@ export const metadata: Metadata = {
   },
   description: "Turn documents into a focused reading and listening experience.",
   applicationName: "SonicPages",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "SonicPages", statusBarStyle: "default" },
+  icons: { icon: "/logo.svg", apple: "/logo.svg" },
 };
 
 export const viewport: Viewport = {
@@ -29,6 +33,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
       <body>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AppShell>{children}</AppShell>
+          <PwaManager />
         </ThemeProvider>
       </body>
     </html>

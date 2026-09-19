@@ -49,6 +49,7 @@ export async function getOwnedReaderDocument(userId: string, documentId: string,
   if (!section) return null;
 
   return {
+    offlineOwnerId: userId,
     document: { id: document.id, title: document.title, author: document.author, format: document.format },
     sections: document.sections,
     section,

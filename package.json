@@ -16,7 +16,9 @@
     "db:studio": "prisma studio",
     "worker:ingestion": "tsx scripts/ingestion-worker.ts",
     "worker:audio": "tsx scripts/audio-worker.ts",
-    "check": "npm run db:validate && npm run lint && npm run typecheck && npm test && npm run build"
+    "pwa:check": "node --check public/sw.js && node scripts/check-pwa.mjs",
+    "audit:production": "node scripts/audit-production.mjs",
+    "check": "npm run db:validate && npm run pwa:check && npm run lint && npm run typecheck && npm test && npm run build"
   },
   "engines": {
     "node": ">=20.9"

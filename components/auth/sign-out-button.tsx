@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
+import { clearOfflineData } from "@/lib/offline";
 
 export function SignOutButton() {
   const router = useRouter();
@@ -16,7 +17,8 @@ export function SignOutButton() {
       onClick={() =>
         authClient.signOut({
           fetchOptions: {
-            onSuccess: () => {
+            onSuccess: async () => {
+              await clearOfflineData();
               router.push("/");
               router.refresh();
             },

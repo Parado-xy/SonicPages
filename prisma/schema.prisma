@@ -255,6 +255,7 @@ model ReaderPreference {
 
 model Bookmark {
   id         String           @id @default(cuid())
+  clientId   String?          @unique
   userId     String
   documentId String
   sectionId  String?
@@ -273,6 +274,7 @@ model Bookmark {
 
 model Highlight {
   id           String           @id @default(cuid())
+  clientId     String?          @unique
   userId       String
   documentId   String
   sectionId    String?
@@ -294,6 +296,7 @@ model Highlight {
 
 model Note {
   id         String           @id @default(cuid())
+  clientId   String?          @unique
   userId     String
   documentId String
   sectionId  String?
