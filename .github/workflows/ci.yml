@@ -31,7 +31,7 @@ jobs:
       AUTH_SECRET: ci-only-secret-with-at-least-32-characters
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
