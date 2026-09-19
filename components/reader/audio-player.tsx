@@ -5,12 +5,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { supportedVoices } from "@/lib/audio/config";
+import { resilientMutation } from "@/lib/offline";
 
 type Segment = { id: string; sectionId: string | null; index: number; durationMs: number; startOffset: number; endOffset: number; url: string };
 type Job = { id: string; status: string; voiceId: string; errorMessage: string | null; segments: Segment[] } | null;
 type Preference = { provider: string; voiceId: string; rate: number; pitch: number; autoAdvance: boolean };
 
-export function AudioPlayer({ documentId, sectionId, sectionIndex, sectionCount, initialJob, initialPreference, onAdvance }: { documentId: string; sectionId: string; sectionIndex: number; sectionCount: number; initialJob: Job; initialPreference: Preference; onAdvance: () => void }) {
+export function AudioPlayer({ ownerId, documentId, sectionId, sectionIndex, sectionCount, initialJob, initialPreference, onAdvance }: { ownerId: string; documentId: string; sectionId: string; sectionIndex: number; sectionCount: number; initialJob: Job; initialPreference: Preference; onAdvance: () => void }) {
   const audio = useRef<HTMLAudioElement>(null);
   const [job, setJob] = useState(initialJob);
   const [preference, setPreference] = useState(initialPreference);
@@ -50,7 +51,7 @@ export function AudioPlayer({ documentId, sectionId, sectionIndex, sectionCount,
   function savePreference(patch: Partial<Preference>) {
     const updated = { ...preference, ...patch };
     setPreference(updated);
-    void fetch("/api/audio/preferences", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updated) });
+    void resilientMutation(ownerId, "/api/audio/preferences", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updated) });
   }
 
   async function togglePlayback() {
@@ -77,7 +78,7 @@ export function AudioPlayer({ documentId, sectionId, sectionIndex, sectionCount,
     const ratio = audio.current.duration ? audio.current.currentTime / audio.current.duration : 0;
     const characterOffset = Math.round(segment.startOffset + (segment.endOffset - segment.startOffset) * ratio);
     const percent = ((sectionIndex + characterOffset / Math.max(1, segment.endOffset)) / sectionCount) * 100;
-    void fetch(`/api/documents/${documentId}/progress`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sectionIndex, characterOffset, percent: Math.min(100, percent), positionSeconds: Math.round(currentElapsed) }) });
+    void resilientMutation(ownerId, `/api/documents/${documentId}/progress`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sectionIndex, characterOffset, percent: Math.min(100, percent), positionSeconds: Math.round(currentElapsed) }) });
   }
 
   const busy = job && ["QUEUED", "PROCESSING", "RETRYING"].includes(job.status);

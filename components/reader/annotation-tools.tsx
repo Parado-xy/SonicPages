@@ -5,6 +5,7 @@ import { Fragment, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { resilientMutation } from "@/lib/offline";
 
 type Bookmark = { id: string; sectionId: string | null; characterOffset: number; label: string | null; createdAt: string };
 type Highlight = { id: string; sectionId: string | null; startOffset: number; endOffset: number; selectedText: string; color: string; createdAt: string; updatedAt: string };
@@ -14,7 +15,7 @@ type SelectionAnchor = { startOffset: number; endOffset: number; selectedText: s
 
 const markColors: Record<string, string> = { yellow: "bg-amber-200/75 text-inherit", green: "bg-emerald-200/75 text-inherit", blue: "bg-sky-200/75 text-inherit", pink: "bg-pink-200/75 text-inherit" };
 
-export function AnnotationTools({ documentId, section, sections, initialAnnotations, panelOpen, onClose, onNavigate }: { documentId: string; section: Section & { text: string }; sections: Section[]; initialAnnotations: { bookmarks: Bookmark[]; highlights: Highlight[]; notes: Note[] }; panelOpen: boolean; onClose: () => void; onNavigate: (index: number) => void }) {
+export function AnnotationTools({ ownerId, documentId, section, sections, initialAnnotations, panelOpen, onClose, onNavigate }: { ownerId: string; documentId: string; section: Section & { text: string }; sections: Section[]; initialAnnotations: { bookmarks: Bookmark[]; highlights: Highlight[]; notes: Note[] }; panelOpen: boolean; onClose: () => void; onNavigate: (index: number) => void }) {
   const [bookmarks, setBookmarks] = useState(initialAnnotations.bookmarks);
   const [highlights, setHighlights] = useState(initialAnnotations.highlights);
   const [notes, setNotes] = useState(initialAnnotations.notes);
@@ -59,28 +60,31 @@ export function AnnotationTools({ documentId, section, sections, initialAnnotati
 
   async function create(body: object) {
     setError(null);
-    const response = await fetch(`/api/documents/${documentId}/annotations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const clientId = crypto.randomUUID();
+    const requestBody = { ...body, clientId };
+    const response = await resilientMutation(ownerId, `/api/documents/${documentId}/annotations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody) });
+    if (!response) return { id: clientId, ...requestBody, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
     const value = await response.json();
     if (!response.ok) { setError(value.error ?? "Annotation could not be saved."); return null; }
     return value.annotation;
   }
 
   async function remove(kind: "bookmark" | "highlight" | "note", id: string) {
-    const response = await fetch(`/api/annotations/${kind}/${id}`, { method: "DELETE" });
-    if (!response.ok) return setError("Annotation could not be removed.");
+    const response = await resilientMutation(ownerId, `/api/annotations/${kind}/${id}`, { method: "DELETE" });
+    if (response && !response.ok) return setError("Annotation could not be removed.");
     if (kind === "bookmark") setBookmarks((items) => items.filter((item) => item.id !== id));
     if (kind === "highlight") setHighlights((items) => items.filter((item) => item.id !== id));
     if (kind === "note") setNotes((items) => items.filter((item) => item.id !== id));
   }
 
   async function recolor(id: string, color: string) {
-    const response = await fetch(`/api/annotations/highlight/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "highlight", color }) });
-    if (response.ok) setHighlights((items) => items.map((item) => item.id === id ? { ...item, color } : item));
+    const response = await resilientMutation(ownerId, `/api/annotations/highlight/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "highlight", color }) });
+    if (!response || response.ok) setHighlights((items) => items.map((item) => item.id === id ? { ...item, color } : item));
   }
 
   async function updateNote(id: string, content: string) {
-    const response = await fetch(`/api/annotations/note/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "note", content }) });
-    if (response.ok) setNotes((items) => items.map((item) => item.id === id ? { ...item, content } : item));
+    const response = await resilientMutation(ownerId, `/api/annotations/note/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "note", content }) });
+    if (!response || response.ok) setNotes((items) => items.map((item) => item.id === id ? { ...item, content } : item));
   }
 
   const normalizedQuery = query.toLowerCase();

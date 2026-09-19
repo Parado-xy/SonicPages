@@ -23,6 +23,9 @@ foundation for the product.
 - Private segmented audio, voice and speed controls, auto-advance, and listening progress sync
 - Content-addressed audio reuse plus per-job, rolling daily, concurrency, and cost controls
 - Anchored bookmarks, multi-color highlights, linked notes, annotation search, and Markdown/JSON export
+- Installable PWA with an explicit, private-device offline document workflow
+- Self-contained offline reader, connectivity/update recovery UI, and background mutation replay
+- Idempotent offline annotation creation and account-scoped sync protection
 - Protected library, reader-preview, and settings routes
 - Accessible loading, error, empty, and not-found states
 - Reusable button, badge, card, header, navigation, and empty-state components
@@ -70,8 +73,8 @@ npm run check
 npm audit --omit=dev --audit-level=high
 ```
 
-`npm run check` validates the Prisma schema, runs linting, strict type-checking,
-unit tests, and an optimized production build.
+`npm run check` validates the Prisma schema, PWA assets and privacy rules, runs
+linting, strict type-checking, unit tests, and an optimized production build.
 
 ## Authentication setup
 
@@ -111,8 +114,7 @@ documents, generated thumbnails, credentials, or provider tokens. See
 
 ## Planned sequence
 
-1. Reliable PWA and offline support
-2. Production hardening
+1. Production hardening
 
 ## License
 

@@ -1,0 +1,13 @@
+{
+  "name": "SonicPages",
+  "short_name": "SonicPages",
+  "description": "A private workspace for reading and listening to documents.",
+  "start_url": "/library",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f8f5",
+  "theme_color": "#145c3e",
+  "icons": [
+    { "src": "/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

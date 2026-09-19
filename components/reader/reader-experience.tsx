@@ -8,11 +8,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { AudioPlayer } from "@/components/reader/audio-player";
 import { AnnotationTools } from "@/components/reader/annotation-tools";
+import { OfflineDocumentButton } from "@/components/reader/offline-document-button";
 import { cn } from "@/lib/utils";
+import { resilientMutation } from "@/lib/offline";
 
 type SectionSummary = { id: string; index: number; title: string | null; pageStart: number | null; pageEnd: number | null };
 type Preference = { fontFamily: string; fontSize: number; lineHeight: number; contentWidth: number; theme: string };
 type Props = {
+  offlineOwnerId: string;
   document: { id: string; title: string; author: string | null; format: string };
   sections: SectionSummary[];
   section: SectionSummary & { text: string };
@@ -33,7 +36,7 @@ const themeStyles = {
   night: { background: "#111815", color: "#dfe9e1" },
 } as const;
 
-export function ReaderExperience({ document, sections, section, progress, preference: initialPreference, playbackPreference, audioJob, annotations }: Props) {
+export function ReaderExperience({ offlineOwnerId, document, sections, section, progress, preference: initialPreference, playbackPreference, audioJob, annotations }: Props) {
   const router = useRouter();
   const [preference, setPreference] = useState(initialPreference);
   const [tocOpen, setTocOpen] = useState(false);
@@ -51,13 +54,13 @@ export function ReaderExperience({ document, sections, section, progress, prefer
     const fraction = Math.max(0, Math.min(1, window.scrollY / scrollable));
     const percent = ((sectionPosition + fraction) / sections.length) * 100;
     if (!keepalive) setReadingPercent(percent);
-    void fetch(`/api/documents/${document.id}/progress`, {
+    void resilientMutation(offlineOwnerId, `/api/documents/${document.id}/progress`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sectionIndex: section.index, characterOffset: Math.round(section.text.length * fraction), percent }),
       keepalive,
     });
-  }, [document.id, section.index, section.text.length, sectionPosition, sections.length]);
+  }, [document.id, offlineOwnerId, section.index, section.text.length, sectionPosition, sections.length]);
 
   useEffect(() => {
     if (progress.sectionIndex === section.index && progress.characterOffset > 0) {
@@ -101,7 +104,7 @@ export function ReaderExperience({ document, sections, section, progress, prefer
     setPreference(updated);
     window.clearTimeout(preferenceTimer.current);
     preferenceTimer.current = window.setTimeout(() => {
-      void fetch("/api/reader/preferences", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updated) });
+      void resilientMutation(offlineOwnerId, "/api/reader/preferences", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updated) });
     }, 350);
   }
 
@@ -116,6 +119,7 @@ export function ReaderExperience({ document, sections, section, progress, prefer
           <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{document.title}</p><p className="truncate text-xs opacity-60">{section.title || `Section ${sectionPosition + 1}`} · {overallPercent}%</p></div>
           <Button size="icon" variant="ghost" onClick={() => setTocOpen((open) => !open)} aria-label="Table of contents"><List className="size-4" /></Button>
           <Button size="icon" variant="ghost" onClick={() => setAnnotationsOpen((open) => !open)} aria-label="Notes and highlights"><NotebookTabs className="size-4" /></Button>
+          <OfflineDocumentButton documentId={document.id} />
           <Button size="icon" variant="ghost" onClick={() => setSettingsOpen((open) => !open)} aria-label="Reading settings"><Settings2 className="size-4" /></Button>
         </div>
         <div className="absolute inset-x-0 bottom-0 h-0.5 bg-current/10"><div className="h-full bg-primary transition-[width]" style={{ width: `${overallPercent}%` }} /></div>
@@ -132,14 +136,14 @@ export function ReaderExperience({ document, sections, section, progress, prefer
         <main className="min-w-0 flex-1 px-5 pb-36 pt-10 sm:px-10 lg:pt-16">
           <article className="mx-auto" style={{ maxWidth: preference.contentWidth, fontFamily: preference.fontFamily === "serif" ? "Georgia, 'Times New Roman', serif" : "Inter, 'Segoe UI', sans-serif", fontSize: preference.fontSize, lineHeight: preference.lineHeight }}>
             <div className="mb-10 border-b border-current/10 pb-7"><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] opacity-55"><BookOpen className="size-4" />{document.format}</div><h1 className="mt-4 text-3xl font-semibold leading-tight sm:text-4xl">{section.title || document.title}</h1>{document.author ? <p className="mt-3 text-base opacity-60">{document.author}</p> : null}</div>
-            <AnnotationTools documentId={document.id} section={section} sections={sections} initialAnnotations={annotations} panelOpen={annotationsOpen} onClose={() => setAnnotationsOpen(false)} onNavigate={navigate} />
+            <AnnotationTools ownerId={offlineOwnerId} documentId={document.id} section={section} sections={sections} initialAnnotations={annotations} panelOpen={annotationsOpen} onClose={() => setAnnotationsOpen(false)} onNavigate={navigate} />
             <nav className="mt-16 flex items-center justify-between gap-4 border-t border-current/10 pt-7" aria-label="Section navigation"><Button variant="outline" disabled={!previous} onClick={() => previous && navigate(previous.index)}><ArrowLeft className="size-4" /> Previous</Button><span className="text-xs opacity-55">{sectionPosition + 1} of {sections.length}</span><Button disabled={!next} onClick={() => next && navigate(next.index)}>Next <ArrowRight className="size-4" /></Button></nav>
           </article>
         </main>
       </div>
 
       {settingsOpen ? <ReaderSettings preference={preference} update={updatePreference} close={() => setSettingsOpen(false)} /> : null}
-      <AudioPlayer key={section.id} documentId={document.id} sectionId={section.id} sectionIndex={section.index} sectionCount={sections.length} initialJob={audioJob} initialPreference={playbackPreference} onAdvance={() => next && navigate(next.index)} />
+      <AudioPlayer key={section.id} ownerId={offlineOwnerId} documentId={document.id} sectionId={section.id} sectionIndex={section.index} sectionCount={sections.length} initialJob={audioJob} initialPreference={playbackPreference} onAdvance={() => next && navigate(next.index)} />
     </div>
   );
 }
