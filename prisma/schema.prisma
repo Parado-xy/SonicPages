@@ -259,6 +259,7 @@ model Bookmark {
   documentId String
   sectionId  String?
   page       Int?
+  characterOffset Int      @default(0)
   label      String?
   user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   document   Document         @relation(fields: [documentId], references: [id], onDelete: Cascade)
@@ -267,6 +268,7 @@ model Bookmark {
 
   @@index([userId, documentId])
   @@index([sectionId])
+  @@unique([userId, documentId, sectionId, characterOffset])
 }
 
 model Highlight {
@@ -282,6 +284,7 @@ model Highlight {
   user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   document     Document         @relation(fields: [documentId], references: [id], onDelete: Cascade)
   section      DocumentSection? @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  notes        Note[]
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 
@@ -294,16 +297,19 @@ model Note {
   userId     String
   documentId String
   sectionId  String?
+  highlightId String?
   page       Int?
   content    String           @db.Text
   user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   document   Document         @relation(fields: [documentId], references: [id], onDelete: Cascade)
   section    DocumentSection? @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  highlight  Highlight?       @relation(fields: [highlightId], references: [id], onDelete: SetNull)
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
 
   @@index([userId, documentId])
   @@index([sectionId])
+  @@index([highlightId])
 }
 
 model Collection {

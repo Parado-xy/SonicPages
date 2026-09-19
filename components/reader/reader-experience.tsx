@@ -1,12 +1,13 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronLeft, List, Settings2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronLeft, List, NotebookTabs, Settings2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { AudioPlayer } from "@/components/reader/audio-player";
+import { AnnotationTools } from "@/components/reader/annotation-tools";
 import { cn } from "@/lib/utils";
 
 type SectionSummary = { id: string; index: number; title: string | null; pageStart: number | null; pageEnd: number | null };
@@ -19,6 +20,11 @@ type Props = {
   preference: Preference;
   playbackPreference: { provider: string; voiceId: string; rate: number; pitch: number; autoAdvance: boolean };
   audioJob: { id: string; status: string; voiceId: string; errorMessage: string | null; segments: { id: string; sectionId: string | null; index: number; durationMs: number; startOffset: number; endOffset: number; url: string }[] } | null;
+  annotations: {
+    bookmarks: { id: string; sectionId: string | null; characterOffset: number; label: string | null; createdAt: string }[];
+    highlights: { id: string; sectionId: string | null; startOffset: number; endOffset: number; selectedText: string; color: string; createdAt: string; updatedAt: string }[];
+    notes: { id: string; sectionId: string | null; highlightId: string | null; content: string; createdAt: string; updatedAt: string }[];
+  };
 };
 
 const themeStyles = {
@@ -27,11 +33,12 @@ const themeStyles = {
   night: { background: "#111815", color: "#dfe9e1" },
 } as const;
 
-export function ReaderExperience({ document, sections, section, progress, preference: initialPreference, playbackPreference, audioJob }: Props) {
+export function ReaderExperience({ document, sections, section, progress, preference: initialPreference, playbackPreference, audioJob, annotations }: Props) {
   const router = useRouter();
   const [preference, setPreference] = useState(initialPreference);
   const [tocOpen, setTocOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [annotationsOpen, setAnnotationsOpen] = useState(false);
   const [readingPercent, setReadingPercent] = useState(progress.percent);
   const saveTimer = useRef<number | undefined>(undefined);
   const preferenceTimer = useRef<number | undefined>(undefined);
@@ -82,7 +89,8 @@ export function ReaderExperience({ document, sections, section, progress, prefer
       if ((event.key === "ArrowLeft" || event.key.toLowerCase() === "k") && previous) navigate(previous.index);
       if ((event.key === "ArrowRight" || event.key.toLowerCase() === "j") && next) navigate(next.index);
       if (event.key.toLowerCase() === "t") setTocOpen((open) => !open);
-      if (event.key === "Escape") { setTocOpen(false); setSettingsOpen(false); }
+      if (event.key.toLowerCase() === "n") setAnnotationsOpen((open) => !open);
+      if (event.key === "Escape") { setTocOpen(false); setSettingsOpen(false); setAnnotationsOpen(false); }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -107,6 +115,7 @@ export function ReaderExperience({ document, sections, section, progress, prefer
           <Link href="/library" className="flex size-10 items-center justify-center rounded-xl hover:bg-current/10" aria-label="Back to library"><ChevronLeft className="size-5" /></Link>
           <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{document.title}</p><p className="truncate text-xs opacity-60">{section.title || `Section ${sectionPosition + 1}`} · {overallPercent}%</p></div>
           <Button size="icon" variant="ghost" onClick={() => setTocOpen((open) => !open)} aria-label="Table of contents"><List className="size-4" /></Button>
+          <Button size="icon" variant="ghost" onClick={() => setAnnotationsOpen((open) => !open)} aria-label="Notes and highlights"><NotebookTabs className="size-4" /></Button>
           <Button size="icon" variant="ghost" onClick={() => setSettingsOpen((open) => !open)} aria-label="Reading settings"><Settings2 className="size-4" /></Button>
         </div>
         <div className="absolute inset-x-0 bottom-0 h-0.5 bg-current/10"><div className="h-full bg-primary transition-[width]" style={{ width: `${overallPercent}%` }} /></div>
@@ -123,7 +132,7 @@ export function ReaderExperience({ document, sections, section, progress, prefer
         <main className="min-w-0 flex-1 px-5 pb-36 pt-10 sm:px-10 lg:pt-16">
           <article className="mx-auto" style={{ maxWidth: preference.contentWidth, fontFamily: preference.fontFamily === "serif" ? "Georgia, 'Times New Roman', serif" : "Inter, 'Segoe UI', sans-serif", fontSize: preference.fontSize, lineHeight: preference.lineHeight }}>
             <div className="mb-10 border-b border-current/10 pb-7"><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] opacity-55"><BookOpen className="size-4" />{document.format}</div><h1 className="mt-4 text-3xl font-semibold leading-tight sm:text-4xl">{section.title || document.title}</h1>{document.author ? <p className="mt-3 text-base opacity-60">{document.author}</p> : null}</div>
-            <div className="reader-copy">{paragraphs(section.text).map((paragraph, index) => <p key={index}>{paragraph}</p>)}</div>
+            <AnnotationTools documentId={document.id} section={section} sections={sections} initialAnnotations={annotations} panelOpen={annotationsOpen} onClose={() => setAnnotationsOpen(false)} onNavigate={navigate} />
             <nav className="mt-16 flex items-center justify-between gap-4 border-t border-current/10 pt-7" aria-label="Section navigation"><Button variant="outline" disabled={!previous} onClick={() => previous && navigate(previous.index)}><ArrowLeft className="size-4" /> Previous</Button><span className="text-xs opacity-55">{sectionPosition + 1} of {sections.length}</span><Button disabled={!next} onClick={() => next && navigate(next.index)}>Next <ArrowRight className="size-4" /></Button></nav>
           </article>
         </main>
@@ -136,9 +145,8 @@ export function ReaderExperience({ document, sections, section, progress, prefer
 }
 
 function ReaderSettings({ preference, update, close }: { preference: Preference; update: (patch: Partial<Preference>) => void; close: () => void }) {
-  return <div className="fixed right-4 top-36 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-3xl border bg-card p-5 text-card-foreground shadow-2xl lg:top-20" role="dialog" aria-label="Reading settings"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Reading comfort</p><h2 className="mt-1 font-semibold">Typography & theme</h2></div><Button size="icon" variant="ghost" onClick={close} aria-label="Close reading settings"><X className="size-4" /></Button></div><div className="mt-5 space-y-5"><Setting label={`Text size · ${preference.fontSize}px`}><input aria-label="Text size" className="w-full accent-[var(--primary)]" type="range" min="15" max="28" value={preference.fontSize} onChange={(event) => update({ fontSize: Number(event.target.value) })} /></Setting><Setting label={`Line height · ${preference.lineHeight.toFixed(1)}`}><input aria-label="Line height" className="w-full accent-[var(--primary)]" type="range" min="1.4" max="2.2" step="0.1" value={preference.lineHeight} onChange={(event) => update({ lineHeight: Number(event.target.value) })} /></Setting><Setting label="Typeface"><div className="grid grid-cols-2 gap-2">{["serif", "sans"].map((font) => <Choice key={font} active={preference.fontFamily === font} onClick={() => update({ fontFamily: font })}>{font === "serif" ? "Book serif" : "Clean sans"}</Choice>)}</div></Setting><Setting label="Reading theme"><div className="grid grid-cols-3 gap-2">{["paper", "sepia", "night"].map((theme) => <Choice key={theme} active={preference.theme === theme} onClick={() => update({ theme })}>{theme}</Choice>)}</div></Setting><Setting label={`Page width · ${preference.contentWidth}px`}><input aria-label="Page width" className="w-full accent-[var(--primary)]" type="range" min="560" max="920" step="40" value={preference.contentWidth} onChange={(event) => update({ contentWidth: Number(event.target.value) })} /></Setting></div><p className="mt-5 text-xs leading-5 text-muted-foreground">Keyboard: ←/K previous · →/J next · T contents · Esc close</p></div>;
+  return <div className="fixed right-4 top-36 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-3xl border bg-card p-5 text-card-foreground shadow-2xl lg:top-20" role="dialog" aria-label="Reading settings"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Reading comfort</p><h2 className="mt-1 font-semibold">Typography & theme</h2></div><Button size="icon" variant="ghost" onClick={close} aria-label="Close reading settings"><X className="size-4" /></Button></div><div className="mt-5 space-y-5"><Setting label={`Text size · ${preference.fontSize}px`}><input aria-label="Text size" className="w-full accent-[var(--primary)]" type="range" min="15" max="28" value={preference.fontSize} onChange={(event) => update({ fontSize: Number(event.target.value) })} /></Setting><Setting label={`Line height · ${preference.lineHeight.toFixed(1)}`}><input aria-label="Line height" className="w-full accent-[var(--primary)]" type="range" min="1.4" max="2.2" step="0.1" value={preference.lineHeight} onChange={(event) => update({ lineHeight: Number(event.target.value) })} /></Setting><Setting label="Typeface"><div className="grid grid-cols-2 gap-2">{["serif", "sans"].map((font) => <Choice key={font} active={preference.fontFamily === font} onClick={() => update({ fontFamily: font })}>{font === "serif" ? "Book serif" : "Clean sans"}</Choice>)}</div></Setting><Setting label="Reading theme"><div className="grid grid-cols-3 gap-2">{["paper", "sepia", "night"].map((theme) => <Choice key={theme} active={preference.theme === theme} onClick={() => update({ theme })}>{theme}</Choice>)}</div></Setting><Setting label={`Page width · ${preference.contentWidth}px`}><input aria-label="Page width" className="w-full accent-[var(--primary)]" type="range" min="560" max="920" step="40" value={preference.contentWidth} onChange={(event) => update({ contentWidth: Number(event.target.value) })} /></Setting></div><p className="mt-5 text-xs leading-5 text-muted-foreground">Keyboard: ←/K previous · →/J next · T contents · N notes · Esc close</p></div>;
 }
 
 function Setting({ label, children }: { label: string; children: React.ReactNode }) { return <div><span className="mb-2 block text-xs font-semibold text-muted-foreground">{label}</span>{children}</div>; }
 function Choice({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) { return <button type="button" onClick={onClick} className={cn("flex items-center justify-center gap-1 rounded-xl border px-3 py-2 text-xs font-semibold capitalize", active && "border-primary bg-accent text-accent-foreground")}>{active ? <Check className="size-3" /> : null}{children}</button>; }
-function paragraphs(text: string) { return text.split(/\n{2,}/).map((value) => value.trim()).filter(Boolean); }
