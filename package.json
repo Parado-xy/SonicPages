@@ -17,6 +17,7 @@
     "worker:ingestion": "tsx scripts/ingestion-worker.ts",
     "worker:audio": "tsx scripts/audio-worker.ts",
     "pwa:check": "node --check public/sw.js && node scripts/check-pwa.mjs",
+    "audit:production": "node scripts/audit-production.mjs",
     "check": "npm run db:validate && npm run pwa:check && npm run lint && npm run typecheck && npm test && npm run build"
   },
   "engines": {
