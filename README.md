@@ -22,6 +22,7 @@ foundation for the product.
 - Provider-neutral, queued speech generation with retry and stale-lock recovery
 - Private segmented audio, voice and speed controls, auto-advance, and listening progress sync
 - Content-addressed audio reuse plus per-job, rolling daily, concurrency, and cost controls
+- Anchored bookmarks, multi-color highlights, linked notes, annotation search, and Markdown/JSON export
 - Protected library, reader-preview, and settings routes
 - Accessible loading, error, empty, and not-found states
 - Reusable button, badge, card, header, navigation, and empty-state components
@@ -110,9 +111,8 @@ documents, generated thumbnails, credentials, or provider tokens. See
 
 ## Planned sequence
 
-1. Notes and reading tools
-2. Reliable PWA and offline support
-3. Production hardening
+1. Reliable PWA and offline support
+2. Production hardening
 
 ## License
 

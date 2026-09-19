@@ -38,10 +38,13 @@ export async function getOwnedReaderDocument(userId: string, documentId: string,
     where: { documentId, index: sectionIndex, document: { ownerId: userId } },
     select: { id: true, index: true, title: true, text: true, pageStart: true, pageEnd: true },
   });
-  const [preference, playbackPreference, audioJob] = await Promise.all([
+  const [preference, playbackPreference, audioJob, bookmarks, highlights, notes] = await Promise.all([
     prisma.readerPreference.findUnique({ where: { userId } }),
     prisma.playbackPreference.findUnique({ where: { userId } }),
     getOwnedAudioState(userId, documentId),
+    prisma.bookmark.findMany({ where: { userId, documentId }, orderBy: { createdAt: "desc" } }),
+    prisma.highlight.findMany({ where: { userId, documentId }, orderBy: { createdAt: "desc" } }),
+    prisma.note.findMany({ where: { userId, documentId }, orderBy: { updatedAt: "desc" } }),
   ]);
   if (!section) return null;
 
@@ -59,6 +62,11 @@ export async function getOwnedReaderDocument(userId: string, documentId: string,
       errorMessage: audioJob.errorMessage,
       segments: audioJob.segments.map((segment) => ({ ...segment, url: `/api/audio/segments/${segment.id}` })),
     } : null,
+    annotations: {
+      bookmarks: bookmarks.map((item) => ({ ...item, createdAt: item.createdAt.toISOString() })),
+      highlights: highlights.map((item) => ({ ...item, createdAt: item.createdAt.toISOString(), updatedAt: item.updatedAt.toISOString() })),
+      notes: notes.map((item) => ({ ...item, createdAt: item.createdAt.toISOString(), updatedAt: item.updatedAt.toISOString() })),
+    },
   };
 }
 
