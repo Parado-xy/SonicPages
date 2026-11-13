@@ -46,6 +46,10 @@ Prove **offline, on-device Kokoro narration** with an immersive text-following r
 - iOS and Android differ in model memory, CPU/GPU acceleration and background execution.
 - Do not silently fall back to a paid cloud TTS API.
 
+### Attribution and dependency notes
+
+The proof of concept vendors the MIT-licensed code from https://github.com/isaiahbjork/expo-kokoro-onnx in src/vendor/kokoro with its original license. It is exploratory reference code, not a production-quality speech pipeline. The code uses expo-av and the legacy Expo filesystem API while the reader uses the modern filesystem API; consolidate these after native validation. Dependencies and native build compatibility are not yet verified by installation or CI.
+
 ### References
 
 - Expo development builds: https://docs.expo.dev/develop/development-builds/introduction/
@@ -55,4 +59,4 @@ Prove **offline, on-device Kokoro narration** with an immersive text-following r
 
 ### Status
 
-Architecture and acceptance criteria established. Native app and on-device Kokoro inference **not yet implemented or tested**.
+Expo application, TXT import, a vendored MIT-licensed Kokoro ONNX reference, model download, local synthesis invocation, sequential passage playback, and passage highlighting are committed. **No native build or real-device test has been run.** Word alignment, durable audio caching, lock-screen controls, offline document persistence, and cross-device verification remain incomplete. The vendored reference uses a simplified English phonemizer and must be evaluated for narration quality and correctness before production.
