@@ -1,3 +1,4 @@
+// @ts-nocheck — upstream JavaScript-style reference; replace with typed adapter after device validation.
 import * as FileSystem from 'expo-file-system/legacy';
 import { InferenceSession, Tensor } from 'onnxruntime-react-native';
 import { Audio } from 'expo-av';
