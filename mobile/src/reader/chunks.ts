@@ -4,7 +4,7 @@ import type { SpeechChunk } from "../speech/types";
 export function splitIntoChunks(documentId: string, text: string, maxLength = 320): SpeechChunk[] {
   if (maxLength < 32) throw new Error("maxLength must be >= 32");
   const chunks: SpeechChunk[] = [];
-  const re = /[^.!?\\n]+(?:[.!?]+|\\n|$)/g;
+  const re = /[^.!?\n]+(?:[.!?]+|\n|$)/g;
   let match: RegExpExecArray | null;
   let start = -1;
   let end = -1;
