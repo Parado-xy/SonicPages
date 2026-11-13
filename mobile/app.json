@@ -13,7 +13,8 @@
         {
           "enableBackgroundPlayback": true
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "ios": {
       "supportsTablet": true,
@@ -26,8 +27,16 @@
     "android": {
       "permissions": [
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_MEDIA_PLAYBACK"
-      ]
+        "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "package": "com.anonymous.sonicpagesmobile"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "fb794d56-acd6-4cfa-991f-cc43c0946701"
+      }
     }
   }
 }
