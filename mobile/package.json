@@ -18,7 +18,8 @@
     "expo-sqlite": "~16.0.0",
     "react": "19.1.0",
     "react-native": "0.81.4",
-    "onnxruntime-react-native": "^1.22.0"
+    "onnxruntime-react-native": "^1.22.0",
+    "expo-av": "~16.0.0"
   },
   "devDependencies": {
     "typescript": "~5.9.2",
