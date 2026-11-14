@@ -1,5 +1,6 @@
 import { File } from "expo-file-system";
 import { NativeModules, Platform } from "react-native";
+import { normalizePdfPage } from "../reader/pdfGeometry";
 import { extractEpubDocument } from "./epub";
 
 const TEXT = "text/plain";
@@ -39,8 +40,7 @@ export async function readPdf(file: File) {
   const { pages, title, author } = await pdf.extract(file.uri);
   let content = "";
   const pageStarts = pages.map(page => {
-    const normalized = page.replace(/\r\n?/g, "\n").split(/\n\s*\n/)
-      .map(paragraph => paragraph.replace(/\s+/g, " ").trim()).filter(Boolean).join("\n\n");
+    const { text: normalized } = normalizePdfPage(page, false);
     const start = content.length;
     if (normalized) content += normalized + "\n\n";
     return start;

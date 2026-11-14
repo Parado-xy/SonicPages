@@ -450,7 +450,13 @@ function ReaderScreen() {
   const bookmarkValue = String(location);
   const bookmarkKey = "bookmark:" + document.id;
   const spokenChunk = state.highlightedIndex === null ? undefined : chunks[state.highlightedIndex];
-  const spokenSentence = spokenChunk && sentenceAt(document.content, spokenChunk);
+  const spokenSentence = spokenChunk?.pageIndex === pdfPage && spokenChunk && sentenceAt(document.content, spokenChunk);
+  const pageStart = document.pageStarts?.[pdfPage] ?? 0;
+  const pageText = totalPages ? document.content.slice(pageStart, document.pageStarts?.[pdfPage + 1]).trimEnd() : "";
+  const pdfRange = pdfPageOverride === undefined && spokenSentence ? {
+    start: Math.max(0, spokenSentence.start - pageStart),
+    end: Math.min(pageText.length, spokenSentence.end - pageStart),
+  } : undefined;
   const scanIntro = totalPages > 0 && !chunks.length && !showScan;
   const colors = {
     ...(palette === dark ? DarkTheme : DefaultTheme).colors,
@@ -533,7 +539,7 @@ function ReaderScreen() {
           <Button p={palette} primary label="View original pages" action={() => setShowScan(true)} />
         </View> : totalPages > 0 && (!pdfTextMode || !chunks.length)
           ? <PdfReader key={document.id} id={document.id} page={pdfPage} total={totalPages}
-            text={pdfPageOverride === undefined && spokenSentence ? document.content.slice(spokenSentence.start, spokenSentence.end).trim() : undefined}
+            pageText={pageText} range={pdfRange}
             move={move} showNavigation={readingChrome} onTap={toggleChrome} openText={() => setPdfTextMode(true)} palette={palette} />
           : <Reader key={document.id} content={document.content} chunks={chunks} index={readingIndex}
             highlightedIndex={navigateTo === undefined ? state.highlightedIndex : null}
