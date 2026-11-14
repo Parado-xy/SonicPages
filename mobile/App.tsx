@@ -87,6 +87,8 @@ function ReaderScreen() {
   useEffect(() => {
     const position = { index: Math.min(document.index, Math.max(0, chunks.length - 1)), positionMs: document.positionMs };
     setState({ ...position, phase: "idle", highlightedIndex: null });
+    const page = Number(preference("pdfPage:" + document.id) || NaN);
+    setPdfPageOverride(Number.isInteger(page) && page >= 0 && page < (document.pageStarts?.length ?? 0) ? page : undefined);
     const audio = new ExpoPlayer();
     player.current = audio;
     audio.setRate(speed.current);
@@ -174,6 +176,8 @@ function ReaderScreen() {
       try {
         const result = await readDocument(file, asset.name, asset.mimeType);
         setPdfPageOverride(undefined);
+        setNavigateTo(undefined);
+        setPdfTextMode(false);
         setDocument(saveDocument(asset.name, result.content, file, result));
         setScreen("reader");
       } finally {
@@ -203,6 +207,7 @@ function ReaderScreen() {
       if (id !== document.id) {
         controller.current?.stop();
         setPdfPageOverride(undefined);
+        setPdfTextMode(false);
         setDocument(openDocument(id));
       }
       setOptions(undefined);
@@ -220,7 +225,6 @@ function ReaderScreen() {
         controller.current?.stop();
         setDocument(openDocument(id));
       }
-      setEntries(listDocuments());
       setEntries(listDocuments());
       return true;
     } catch (error) {
@@ -281,19 +285,20 @@ function ReaderScreen() {
     idle: ready ? "Ready to listen offline" : "Prepare Kokoro for offline listening (93 MB on first setup)",
   }[state.phase]);
 
-  const pdfPage = pdfPageOverride ?? chunks[state.index]?.pageIndex ?? 0;
+  const pdfPage = pdfPageOverride ?? chunks[navigateTo ?? state.index]?.pageIndex ?? 0;
   const totalPages = document.pageStarts?.length ?? 0;
   const play = () => {
     if (!chunks.length || !entries.length) return;
     if (navigateTo !== undefined && ready) {
       setNavigateTo(undefined);
+      setPdfPageOverride(undefined);
+      if (totalPages) savePreference("pdfPage:" + document.id, "");
       void controller.current?.listen(navigateTo);
       return;
     }
     if (pdfPageOverride !== undefined && ready) {
       const start = chunks.findIndex(chunk => (chunk.pageIndex ?? -1) >= pdfPageOverride);
-      setPdfPageOverride(undefined);
-      if (start >= 0) void controller.current?.listen(start);
+      if (start >= 0) selectPassage(start);
       return;
     }
     if (preview.current && !preview.current.signal.aborted) preview.current.abort();
@@ -305,7 +310,10 @@ function ReaderScreen() {
     if (!ready) { openVoice(); return; }
     setPdfPageOverride(undefined);
     setNavigateTo(undefined);
-    if (!importing && chunks[index]) void controller.current?.listen(index);
+    if (!importing && chunks[index]) {
+      if (totalPages && pdfPageOverride !== undefined) savePreference("pdfPage:" + document.id, "");
+      void controller.current?.listen(index);
+    }
   };
   const closeSheet = () => { preview.current?.abort(); setPreviewing(undefined); setSheet(undefined); };
   const openVoice = () => {
@@ -356,7 +364,7 @@ function ReaderScreen() {
   const playing = state.phase === "playing";
   const pending = !!setup || importing || state.phase === "generating" || state.phase === "buffering";
   const elapsed = Math.floor(state.positionMs / 1000);
-  const passage = totalPages ? `Page ${(chunks[state.index]?.pageIndex ?? 0) + 1} of ${totalPages}` : `Passage ${Math.min(state.index + 1, chunks.length)} of ${chunks.length}`;
+  const passage = totalPages ? `Page ${pdfPage + 1} of ${totalPages}` : `Passage ${Math.min(state.index + 1, chunks.length)} of ${chunks.length}`;
   const hasTimeline = !!state.durationMs && state.highlightedIndex !== null;
   const playable = chunks.length > 0 && entries.length > 0;
   const controlsDisabled = pending || !playable;
@@ -370,6 +378,8 @@ function ReaderScreen() {
     setNavigateTo(index >= 0 ? index : undefined);
     if (totalPages && entry.page !== undefined) setPdfPageOverride(entry.page);
     if (index >= 0) savePosition(document.id, { index, positionMs: 0 });
+    if (totalPages && entry.page !== undefined) savePreference("pdfPage:" + document.id, String(entry.page));
+    if (narrate && index >= 0) openVoice();
   };
   const skip = (seconds: number) => {
     void controller.current?.skip(seconds * 1000, index => chunks[index]
@@ -472,7 +482,7 @@ function ReaderScreen() {
         <Button p={palette} label="A+" action={() => { const size = Math.min(32, fontSize + 1); setFontSize(size); savePreference("fontSize", String(size)); }} />
       </View>
     </Sheet>}
-    {sheet === "voice" && <Sheet title="Narration voice" close={closeSheet} p={palette}>
+    {sheet === "voice" && <Sheet key="voice" title="Narration voice" close={closeSheet} p={palette}>
       {!!setup && <View style={ui.row}>
         <Text accessibilityLiveRegion="polite" style={{ color: palette.muted, flex: 1 }}>{setup}</Text>
         <Button p={palette} label="Cancel" action={closeSheet} />
@@ -492,7 +502,7 @@ function ReaderScreen() {
         </View>;
       })}
     </Sheet>}
-    {sheet === "contents" && <Sheet title="Contents" close={closeSheet} p={palette}>
+    {sheet === "contents" && <Sheet key="contents" title="Contents" close={closeSheet} p={palette}>
       <Contents key={document.id} id={document.id} format={totalPages ? "PDF" : active.format}
         current={totalPages ? pdfPage : chunks[navigateTo ?? state.index]?.startChar ?? 0}
         total={totalPages || chunks.length} read={entry => jump(entry, false)} play={entry => jump(entry, true)} p={palette} />

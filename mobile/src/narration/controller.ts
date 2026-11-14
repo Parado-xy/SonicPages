@@ -76,16 +76,20 @@ export class NarrationController {
     let position = (this.audio.positionMs?.() ?? this.state.positionMs) + deltaMs;
     let duration = this.clipDurationMs;
     while (position >= duration && index + 1 < this.chunks.length) {
+      const next = durationAt(index + 1);
+      if (!next) { position = duration - 1; break; }
       position -= duration;
-      const next = durationAt(++index);
-      if (!next) { position = 0; break; }
+      index++;
       duration = next;
     }
     while (position < 0 && index > 0) {
-      const previous = durationAt(--index);
+      const previous = durationAt(index - 1);
       if (!previous) { position = 0; break; }
+      index--;
       position += previous;
+      duration = previous;
     }
+    position = Math.max(0, Math.min(position, duration - 1));
     if (index === this.state.index) await this.seek(position);
     else if (this.state.phase === "paused") {
       this.stop();
