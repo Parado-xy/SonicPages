@@ -8,7 +8,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
-    "postinstall": "node scripts/fix-onnx-autolinking.cjs && node scripts/enable-android-audio-route-pause.cjs",
+    "postinstall": "node scripts/fix-onnx-autolinking.cjs && node scripts/enable-android-audio-route-pause.cjs && node scripts/disable-android-onnx-thread-spinning.cjs",
     "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
