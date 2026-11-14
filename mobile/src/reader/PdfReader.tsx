@@ -5,11 +5,12 @@ import { originalFile } from "../storage/originalFiles";
 import { readerMedia } from "../storage/thumbnails";
 import { Button, ui, type Palette } from "./Design";
 
-export function PdfReader({ id, page, total, text, move, palette: p }: {
-  id: string; page: number; total: number; text?: string; move(page: number): void; palette: Palette;
+export function PdfReader({ id, page, total, text, move, openText, palette: p }: {
+  id: string; page: number; total: number; text?: string; move(page: number): void; openText(): void; palette: Palette;
 }) {
   const [image, setImage] = useState<{uri: string; aspect: number}>();
   const [bounds, setBounds] = useState<Awaited<ReturnType<NonNullable<typeof readerMedia>["pdfHighlight"]>>>([]);
+  const [matched, setMatched] = useState<string>();
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let active = true;
@@ -32,8 +33,9 @@ export function PdfReader({ id, page, total, text, move, palette: p }: {
   useEffect(() => {
     let active = true;
     setBounds([]);
+    setMatched(undefined);
     if (text) void readerMedia?.pdfHighlight(originalFile(id).uri, page, text)
-      .then(result => { if (active) setBounds(result); }).catch(() => {});
+      .then(result => { if (active) { setBounds(result); setMatched(text); } }).catch(() => { if (active) setMatched(text); });
     return () => { active = false; };
   }, [id, page, text]);
   return <View style={{ flex: 1 }}>
@@ -42,6 +44,11 @@ export function PdfReader({ id, page, total, text, move, palette: p }: {
       <Text style={{ color: p.ink }}>Page {page + 1} of {total}</Text>
       <Button p={p} label="›" accessibilityLabel="Next PDF page" disabled={page + 1 >= total} action={() => move(page + 1)} />
     </View>
+    {!!text && matched === text && !bounds.length && <View style={{ backgroundColor: p.card, padding: 10, gap: 4 }}>
+      <Text style={{ color: p.ink }}>Can’t locate this passage on the page.</Text>
+      <Text style={{ color: p.muted }}>Narration continues. Follow along in Text view.</Text>
+      <Button p={p} label="Open Text view" action={openText} />
+    </View>}
     <ScrollView key={page} contentContainerStyle={{ padding: 8 }}>
       {image ? <View style={{ width: "100%", aspectRatio: image.aspect, backgroundColor: "#fff" }}>
         <Image source={{ uri: image.uri }} resizeMode="stretch" style={{ width: "100%", height: "100%" }} />

@@ -21,8 +21,8 @@ export function Reader({ chunks, index, highlightedIndex, onSelect, palette, fon
   };
 
   useEffect(() => {
-    if (highlightedIndex !== null) scrollToPassage(highlightedIndex, true);
-  }, [highlightedIndex]);
+    scrollToPassage(highlightedIndex ?? index, true);
+  }, [highlightedIndex, index]);
 
   const measure = (passage: number, event: LayoutChangeEvent) => {
     const firstLayout = positions.current[passage] === undefined;

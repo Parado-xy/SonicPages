@@ -132,3 +132,29 @@ test("a long session keeps three passages ahead and plays every clip in order", 
   await controller.listen(0);
   deepEqual(played, passages.map(passage => passage.id));
 });
+
+test("skip stops at the edge of generated audio without starting an uncached passage", async () => {
+  const played: string[] = [];
+  const seeks: number[] = [];
+  const { controller, positions } = fixture({
+    async synthesize(chunk) { return clip(chunk.id); },
+  }, {
+    async play(uri, _title, _offset, signal, status) {
+      played.push(uri);
+      status({ playing: true, positionMs: 800 });
+      await new Promise<void>(resolve => signal.addEventListener("abort", () => resolve(), { once: true }));
+    },
+    async seek(positionMs) { seeks.push(positionMs); },
+    positionMs: () => 800,
+    pause() {},
+    resume() {},
+  });
+  const listening = controller.listen(0);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  await controller.skip(15_000, () => undefined);
+  deepEqual(seeks, [1599]);
+  deepEqual(positions.at(-1), { index: 0, positionMs: 1599 });
+  deepEqual(played, [chunks[0].id]);
+  controller.stop();
+  await listening;
+});

@@ -1,3 +1,7 @@
+import Slider from "@react-native-community/slider";
+import { DocumentOptions } from "./src/reader/DocumentOptions";
+import { Contents, type ContentsEntry } from "./src/reader/Contents";
+import { displayTitle } from "./src/imports/documentTitle";
 import { useFonts } from "expo-font";
 import { Newsreader_400Regular } from "@expo-google-fonts/newsreader/400Regular";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -5,7 +9,7 @@ import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { ThemeProvider, useTheme } from "./src/theme/ThemeProvider";
 import { dark, serif } from "./src/theme/tokens";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, AppState, FlatList, Image, Pressable, ScrollView, StatusBar, Text, View, type GestureResponderEvent } from "react-native";
+import { ActivityIndicator, Alert, AppState, FlatList, Image, Pressable, ScrollView, StatusBar, Text, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
@@ -14,14 +18,13 @@ import { ExpoPlayer } from "./src/audio/expoPlayer";
 import { NarrationController, type NarrationState } from "./src/narration/controller";
 import { documentChunks } from "./src/reader/pdfPages";
 import { PdfReader } from "./src/reader/PdfReader";
-import { Library } from "./src/reader/Library";
 import { Button, Cover, LibraryShelf, Paper, Sheet, ui } from "./src/reader/Design";
 import { deleteThumbnail, readerMedia } from "./src/storage/thumbnails";
 import { NARRATORS } from "./src/vendor/kokoro/models";
 import { Reader } from "./src/reader/Reader";
 import { cachedPassageAudio, kokoroEngine } from "./src/speech/kokoroEngine";
 import { deleteDocumentAudio, speechStorageUsage } from "./src/storage/audioFiles";
-import { originalFile } from "./src/storage/originalFiles";
+import { originalFile, originalsSize } from "./src/storage/originalFiles";
 import { exportDocument, exportNarration } from "./src/storage/exportFiles";
 import { deleteDocument, saveMetadata, listDocuments, loadDocument, openDocument, renameDocument, preference, savePreference, saveDocument, savePosition, type LibraryEntry } from "./src/storage/readerStore";
 
@@ -46,7 +49,7 @@ export default function App() {
 function ReaderScreen() {
   const { theme, setTheme, palette } = useTheme();
   const [screen, setScreen] = useState<"library" | "reader" | "player">("library");
-  const [sheet, setSheet] = useState<"speed" | "voice" | "appearance" | "contents">();
+  const [sheet, setSheet] = useState<"speed" | "voice" | "appearance" | "contents" | "storage">();
   const [fontSize, setFontSize] = useState(() => Number(preference("fontSize")) || 21);
   const [rate, setRate] = useState(() => Number(preference("rate")) || 1);
   const [voice, setVoice] = useState(() => {
@@ -63,7 +66,8 @@ function ReaderScreen() {
   const [entries, setEntries] = useState<LibraryEntry[]>([]);
   const [pdfPageOverride, setPdfPageOverride] = useState<number>();
   const [pdfTextMode, setPdfTextMode] = useState(false);
-  const [trackWidth, setTrackWidth] = useState(0);
+  const [navigateTo, setNavigateTo] = useState<number>();
+  const [processing, setProcessing] = useState<{ raw: string; title: string }>();
   const [document, setDocument] = useState(() => loadDocument(DEMO));
   const chunks = useMemo(() => documentChunks(document.id, document.content, document.pageStarts), [document]);
   const initial = { index: Math.min(document.index, Math.max(0, chunks.length - 1)), positionMs: document.positionMs };
@@ -71,8 +75,8 @@ function ReaderScreen() {
   const [ready, setReady] = useState(false);
   const [setup, setSetup] = useState<string>();
   const [setupError, setSetupError] = useState<string>();
-  const [library, setLibrary] = useState<LibraryEntry[] | null>(null);
-  const [storage, setStorage] = useState({ voiceBytes: 0, audioBytes: 0 });
+  const [options, setOptions] = useState<LibraryEntry>();
+  const [storage, setStorage] = useState({ voiceBytes: 0, audioBytes: 0, documents: 0 });
   const [libraryBusy, setLibraryBusy] = useState(false);
   const libraryOperation = useRef(false);
   const [importing, setImporting] = useState(false);
@@ -83,6 +87,8 @@ function ReaderScreen() {
   useEffect(() => {
     const position = { index: Math.min(document.index, Math.max(0, chunks.length - 1)), positionMs: document.positionMs };
     setState({ ...position, phase: "idle", highlightedIndex: null });
+    const page = Number(preference("pdfPage:" + document.id) || NaN);
+    setPdfPageOverride(Number.isInteger(page) && page >= 0 && page < (document.pageStarts?.length ?? 0) ? page : undefined);
     const audio = new ExpoPlayer();
     player.current = audio;
     audio.setRate(speed.current);
@@ -165,10 +171,13 @@ function ReaderScreen() {
       const result = await DocumentPicker.getDocumentAsync({ type: documentTypes, copyToCacheDirectory: true });
       if (result.canceled) return;
       const asset = result.assets[0];
+      setProcessing({ raw: asset.name, title: displayTitle(asset.name) });
       const file = new File(asset.uri);
       try {
         const result = await readDocument(file, asset.name, asset.mimeType);
         setPdfPageOverride(undefined);
+        setNavigateTo(undefined);
+        setPdfTextMode(false);
         setDocument(saveDocument(asset.name, result.content, file, result));
         setScreen("reader");
       } finally {
@@ -178,6 +187,7 @@ function ReaderScreen() {
       Alert.alert("Import failed", String(error));
     } finally {
       importInProgress.current = false;
+      setProcessing(undefined);
       setImporting(false);
     }
   };
@@ -185,8 +195,8 @@ function ReaderScreen() {
   const showLibrary = () => {
     try {
       controller.current?.checkpoint();
-      setStorage(speechStorageUsage());
-      setLibrary(listDocuments());
+      setStorage({ ...speechStorageUsage(), documents: originalsSize() });
+      setEntries(listDocuments());
     } catch (error) {
       Alert.alert("Could not open the library", String(error));
     }
@@ -197,9 +207,11 @@ function ReaderScreen() {
       if (id !== document.id) {
         controller.current?.stop();
         setPdfPageOverride(undefined);
+        setPdfTextMode(false);
         setDocument(openDocument(id));
       }
-      setLibrary(null);
+      setOptions(undefined);
+      setNavigateTo(undefined);
       setScreen("reader");
     } catch (error) {
       Alert.alert("Could not open document", String(error));
@@ -213,7 +225,6 @@ function ReaderScreen() {
         controller.current?.stop();
         setDocument(openDocument(id));
       }
-      setLibrary(listDocuments());
       setEntries(listDocuments());
       return true;
     } catch (error) {
@@ -228,7 +239,7 @@ function ReaderScreen() {
     setLibraryBusy(true);
     try {
       await operation();
-      setStorage(speechStorageUsage());
+      setStorage({ ...speechStorageUsage(), documents: originalsSize() });
     } catch (error) {
       Alert.alert("Library action failed", error instanceof Error ? error.message : String(error));
     } finally {
@@ -237,27 +248,22 @@ function ReaderScreen() {
     }
   };
 
-  const removeDocument = (id: string, title: string) => {
-    Alert.alert("Delete document?", `“${title}” and its saved position and generated audio will be removed from SonicPages. Files outside the app are kept.`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => void runLibraryOperation(async () => {
-        if (id === document.id) controller.current?.stop();
-        deleteDocument(id);
-        if (id === document.id) {
-          const next = listDocuments()[0];
-          setPdfPageOverride(undefined);
-          setDocument(next ? openDocument(next.id) : loadDocument(DEMO));
-        }
-        const updated = listDocuments();
-        setEntries(updated);
-        setLibrary(updated);
-        deleteDocumentAudio(id);
-        const original = originalFile(id);
-        if (original.exists) original.delete();
-        await deleteThumbnail(id);
-      }) },
-    ]);
-  };
+  const removeDocument = (id: string) => void runLibraryOperation(async () => {
+    if (id === document.id) controller.current?.stop();
+    deleteDocument(id);
+    const updated = listDocuments();
+    if (!updated.length) savePreference("libraryInitialized", "1");
+    if (id === document.id) {
+      setPdfPageOverride(undefined);
+      setNavigateTo(undefined);
+      setDocument(updated.length ? openDocument(updated[0].id) : { ...DEMO, index: 0, positionMs: 0 });
+    }
+    setEntries(updated);
+    deleteDocumentAudio(id);
+    const original = originalFile(id);
+    if (original.exists) original.delete();
+    await deleteThumbnail(id);
+  });
 
   const clearAudio = () => {
     Alert.alert("Clear generated audio?", "Your documents, voice download, and reading positions are kept.", [
@@ -265,7 +271,7 @@ function ReaderScreen() {
       { text: "Clear audio", style: "destructive", onPress: () => void runLibraryOperation(async () => {
         controller.current?.stop();
         await kokoroEngine.clearGeneratedAudio();
-        setLibrary(listDocuments());
+        setEntries(listDocuments());
       }) },
     ]);
   };
@@ -279,24 +285,35 @@ function ReaderScreen() {
     idle: ready ? "Ready to listen offline" : "Prepare Kokoro for offline listening (93 MB on first setup)",
   }[state.phase]);
 
-  const pdfPage = pdfPageOverride ?? chunks[state.index]?.pageIndex ?? 0;
+  const pdfPage = pdfPageOverride ?? chunks[navigateTo ?? state.index]?.pageIndex ?? 0;
   const totalPages = document.pageStarts?.length ?? 0;
   const play = () => {
+    if (!chunks.length || !entries.length) return;
+    if (navigateTo !== undefined && ready) {
+      setNavigateTo(undefined);
+      setPdfPageOverride(undefined);
+      if (totalPages) savePreference("pdfPage:" + document.id, "");
+      void controller.current?.listen(navigateTo);
+      return;
+    }
     if (pdfPageOverride !== undefined && ready) {
       const start = chunks.findIndex(chunk => (chunk.pageIndex ?? -1) >= pdfPageOverride);
-      setPdfPageOverride(undefined);
-      if (start >= 0) void controller.current?.listen(start);
+      if (start >= 0) selectPassage(start);
       return;
     }
     if (preview.current && !preview.current.signal.aborted) preview.current.abort();
     if (libraryOperation.current) return;
-    if (!ready) { void prepare(); return; }
+    if (!ready) { openVoice(); return; }
     controller.current?.toggle();
   };
   const selectPassage = (index: number) => {
-    if (!ready) { void prepare(); return; }
+    if (!ready) { openVoice(); return; }
     setPdfPageOverride(undefined);
-    if (!importing && chunks[index]) void controller.current?.listen(index);
+    setNavigateTo(undefined);
+    if (!importing && chunks[index]) {
+      if (totalPages && pdfPageOverride !== undefined) savePreference("pdfPage:" + document.id, "");
+      void controller.current?.listen(index);
+    }
   };
   const closeSheet = () => { preview.current?.abort(); setPreviewing(undefined); setSheet(undefined); };
   const openVoice = () => {
@@ -313,7 +330,7 @@ function ReaderScreen() {
     setSetupError(undefined);
     setSetup("Preparing voice…");
     try {
-      await kokoroEngine.prepare(setSetup, false, id);
+      await kokoroEngine.prepare(setSetup, false, id, request.signal);
       if (request.signal.aborted) return;
       if (!listen) {
         kokoroEngine.narrator = id;
@@ -347,13 +364,22 @@ function ReaderScreen() {
   const playing = state.phase === "playing";
   const pending = !!setup || importing || state.phase === "generating" || state.phase === "buffering";
   const elapsed = Math.floor(state.positionMs / 1000);
-  const passage = totalPages ? `Page ${(chunks[state.index]?.pageIndex ?? 0) + 1} of ${totalPages}` : `Passage ${Math.min(state.index + 1, chunks.length)} of ${chunks.length}`;
+  const passage = totalPages ? `Page ${pdfPage + 1} of ${totalPages}` : `Passage ${Math.min(state.index + 1, chunks.length)} of ${chunks.length}`;
   const hasTimeline = !!state.durationMs && state.highlightedIndex !== null;
-  const progress = hasTimeline ? Math.min(1, state.positionMs / state.durationMs!) : 0;
-  const seek = (event: GestureResponderEvent) => {
-    if (hasTimeline && trackWidth) {
-      void controller.current?.seek(event.nativeEvent.locationX / trackWidth * state.durationMs!).catch(console.warn);
-    }
+  const playable = chunks.length > 0 && entries.length > 0;
+  const controlsDisabled = pending || !playable;
+  const jump = (entry: ContentsEntry, narrate: boolean) => {
+    const index = entry.offset !== undefined ? chunks.findIndex(chunk => chunk.endChar > entry.offset!)
+      : totalPages ? chunks.findIndex(chunk => (chunk.pageIndex ?? -1) >= (entry.page ?? 0)) : entry.page ?? -1;
+    closeSheet();
+    setScreen("reader");
+    if (narrate && index >= 0 && ready) { selectPassage(index); return; }
+    controller.current?.stop();
+    setNavigateTo(index >= 0 ? index : undefined);
+    if (totalPages && entry.page !== undefined) setPdfPageOverride(entry.page);
+    if (index >= 0) savePosition(document.id, { index, positionMs: 0 });
+    if (totalPages && entry.page !== undefined) savePreference("pdfPage:" + document.id, String(entry.page));
+    if (narrate && index >= 0) openVoice();
   };
   const skip = (seconds: number) => {
     void controller.current?.skip(seconds * 1000, index => chunks[index]
@@ -367,23 +393,24 @@ function ReaderScreen() {
         {screen === "library" && <Image source={require("./assets/sonicpages-icon.png")} style={{ width: 38, height: 38, borderRadius: 8 }} />}
         {screen === "reader" && <Button p={palette} label="‹" accessibilityLabel="Back to Library" action={() => setScreen("library")} />}
         <Text accessibilityRole="header" numberOfLines={2} style={[ui.heading, { color: palette.ink }]}>
-          {screen === "library" ? "My Library" : screen === "player" ? "Now Playing" : document.title}
+          {screen === "library" ? "SonicPages" : screen === "player" ? "Now Playing" : document.title}
         </Text>
         {screen === "library"
-          ? <Button p={palette} label="Import" action={() => void importDocument()} disabled={importing || libraryBusy} />
+          ? <Button p={palette} label="⚙" accessibilityLabel="Settings" action={() => setSheet("appearance")} />
           : <Button p={palette} label={screen === "reader" ? "Aa" : "Read"} action={() => screen === "reader" ? setSheet("appearance") : setScreen("reader")} />}
         {screen === "reader" && totalPages > 0 && <Button p={palette} label={pdfTextMode ? "Page" : "Text"}
           accessibilityLabel={pdfTextMode ? "Show original PDF page" : "Show text view"} action={() => setPdfTextMode(!pdfTextMode)} />}
-        {screen !== "reader" && <Button p={palette} label="Aa" accessibilityLabel="Appearance" action={() => setSheet("appearance")} />}
+        {screen === "reader" && <Button p={palette} label="☰" accessibilityLabel="Contents" action={() => setSheet("contents")} />}
+        {screen === "player" && <Button p={palette} label="Aa" accessibilityLabel="Appearance" action={() => setSheet("appearance")} />}
       </View>
 
       {screen === "library" && <LibraryShelf entries={entries} active={{ ...active, index: state.index }} p={palette}
-        open={switchDocument} play={play} playing={playing} controls={showLibrary} disabled={pending} />}
-      {screen === "reader" && totalPages > 0 && !pdfTextMode
+        open={switchDocument} play={play} playing={playing} importFile={() => { if (!libraryBusy) void importDocument(); }} options={setOptions} importing={processing} disabled={controlsDisabled} />}
+      {screen === "reader" && totalPages > 0 && (!pdfTextMode || !chunks.length)
         ? <PdfReader key={document.id} id={document.id} page={pdfPage} total={totalPages}
             text={pdfPageOverride === undefined && state.highlightedIndex !== null ? chunks[state.highlightedIndex]?.text : undefined}
-            move={page => { controller.current?.stop(); setPdfPageOverride(page); }} palette={palette} />
-        : screen === "reader" && <Reader key={document.id} chunks={chunks} index={state.index} highlightedIndex={state.highlightedIndex}
+            move={page => jump({ title: "", depth: 0, page }, false)} openText={() => setPdfTextMode(true)} palette={palette} />
+        : screen === "reader" && <Reader key={document.id} chunks={chunks} index={navigateTo ?? state.index} highlightedIndex={navigateTo === undefined ? state.highlightedIndex : null}
         onSelect={selectPassage} palette={palette} fontSize={fontSize} />}
       {screen === "player" && <ScrollView contentContainerStyle={{ padding: 20, gap: 12, alignItems: "center", flexGrow: 1, justifyContent: "center" }}>
         <View style={{ width: "68%", maxWidth: 245 }}>
@@ -391,49 +418,48 @@ function ReaderScreen() {
         </View>
         <Text numberOfLines={2} ellipsizeMode="tail" style={[ui.heading, { color: palette.ink, flex: 0, textAlign: "center", maxWidth: "100%" }]}>{document.title}</Text>
         <Text style={{ color: palette.muted }}>{passage}</Text>
-        <Pressable accessibilityRole="adjustable" accessibilityLabel="Position in current passage" disabled={!hasTimeline}
-          accessibilityValue={{ min: 0, max: Math.max(1, Math.round((state.durationMs ?? 0) / 1000)), now: elapsed }}
-          accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
-          onAccessibilityAction={event => skip(event.nativeEvent.actionName === "increment" ? 15 : -15)}
-          onLayout={event => setTrackWidth(event.nativeEvent.layout.width)} onPress={seek}
-          style={{ width: "100%", height: 44, justifyContent: "center" }}>
-          <View pointerEvents="none" style={{ height: 5, backgroundColor: palette.line, borderRadius: 4 }}>
-            <View style={{ width: `${progress * 100}%`, height: 5, backgroundColor: palette.accent, borderRadius: 4 }} />
-          </View>
-          <Text pointerEvents="none" style={{ color: palette.muted, marginTop: 5 }}>{hasTimeline ? `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")} in passage` : passage}</Text>
-        </Pressable>
-        <View style={[ui.row, { gap: 14 }]}>
+        {hasTimeline ? <View style={{ width: "100%" }}>
+          <Slider accessibilityLabel="Playback position in this passage" minimumValue={0} maximumValue={state.durationMs!}
+            value={state.positionMs} minimumTrackTintColor={palette.accent} maximumTrackTintColor={palette.line}
+            thumbTintColor={palette.accent} onSlidingComplete={value => void controller.current?.seek(value).catch(console.warn)}
+            accessibilityValue={{ text: `${elapsed} seconds in this passage` }} style={{ height: 48 }} />
+          <Text style={{ color: palette.muted }}>{elapsed}s elapsed · {Math.ceil(state.durationMs! / 1000)}s available</Text>
+        </View> : <Text style={{ color: palette.muted }}>Duration available as narration is generated.</Text>}
+      </ScrollView>}
+      {screen === "player" && <View style={[ui.dock, { borderColor: palette.line, backgroundColor: palette.card }]}>
+        <View style={[ui.row, { gap: 14, justifyContent: "center" }]}>
           <Button p={palette} label="↶ 15" accessibilityLabel="Back 15 seconds" action={() => skip(-15)} disabled={!hasTimeline} />
-          <Button p={palette} primary label={playing ? "Ⅱ Pause" : "▶ Play"} action={play} disabled={pending} />
+          <Button p={palette} primary label={playing ? "Ⅱ Pause" : "▶ Play"} action={play} disabled={controlsDisabled} />
           <Button p={palette} label="15 ↷" accessibilityLabel="Forward 15 seconds" action={() => skip(15)} disabled={!hasTimeline} />
         </View>
         <View style={[ui.row, { flexWrap: "wrap", justifyContent: "center" }]}>
           <Button p={palette} label={`Speed ${rate}×`} action={() => setSheet("speed")} />
           <Button p={palette} label={`Voice ${narratorLabel}`} action={openVoice} />
           <Button p={palette} label="Contents" action={() => setSheet("contents")} />
-        </View>
-      </ScrollView>}
-
-      {screen !== "library" && <View style={[ui.dock, { borderColor: palette.line, backgroundColor: palette.card }]}>
-        <Text accessibilityLiveRegion="polite" style={{ color: palette.muted }}>{status}</Text>
-        {pending && <ActivityIndicator color={palette.accent} />}
-        <View style={[ui.row, { justifyContent: "space-between" }]}>
-          {screen === "reader" && <>
-            <Button p={palette} label="|◀" accessibilityLabel="Previous passage" action={() => selectPassage(state.index - 1)} disabled={state.index <= 0 || pending} />
-            <Button p={palette} primary label={playing ? "Ⅱ" : "▶"} accessibilityLabel={playing ? "Pause" : "Play"} action={play} disabled={pending} />
-            <Button p={palette} label="▶|" accessibilityLabel="Next passage" action={() => selectPassage(state.index + 1)} disabled={state.index + 1 >= chunks.length || pending} />
-            <Button p={palette} label={`${rate}×`} action={() => setSheet("speed")} />
-          </>}
-          {screen === "reader" && <Text style={{ color: palette.muted, flexShrink: 1 }}>{passage}</Text>}
-          {screen === "player" && <Button p={palette} label="Stop" action={() => controller.current?.stop()} disabled={!playing && state.phase !== "paused" && !pending} />}
+          <Button p={palette} label="Stop" action={() => controller.current?.stop()} disabled={!playing && state.phase !== "paused" && !pending} />
         </View>
       </View>}
-      {screen === "library" && (ready || pending) && <View style={[ui.dock, ui.row, { borderColor: palette.line, backgroundColor: palette.card }]}>
+
+      {screen === "reader" && <View style={[ui.dock, { borderColor: palette.line, backgroundColor: palette.card }]}>
+        <Text accessibilityLiveRegion="polite" style={{ color: palette.muted }}>{!chunks.length && totalPages ? "No selectable text. You can still read the original pages." : status}</Text>
+        {pending && <ActivityIndicator color={palette.accent} />}
+        <View style={[ui.row, { justifyContent: "center", flexWrap: "wrap" }]}>
+          {screen === "reader" && <>
+            <Button p={palette} label="↶15" accessibilityLabel="Back 15 seconds" action={() => skip(-15)} disabled={!hasTimeline} />
+            <Button p={palette} primary label={playing ? "Ⅱ" : "▶"} accessibilityLabel={playing ? "Pause" : "Play"} action={play} disabled={controlsDisabled} />
+            <Button p={palette} label="15↷" accessibilityLabel="Forward 15 seconds" action={() => skip(15)} disabled={!hasTimeline} />
+            <Button p={palette} label="Voice" action={openVoice} />
+            <Button p={palette} label="⌃" accessibilityLabel="Open Now Playing" action={() => setScreen("player")} />
+            <Button p={palette} label={`${rate}×`} action={() => setSheet("speed")} />
+          </>}
+        </View>
+      </View>}
+      {screen === "library" && entries.length > 0 && <View style={[ui.dock, ui.row, { borderColor: palette.line, backgroundColor: palette.card }]}>
         <Pressable accessibilityRole="button" accessibilityLabel="Open Now Playing" onPress={() => setScreen("player")} style={{ flex: 1 }}>
           <Text numberOfLines={1} style={{ color: palette.ink, fontWeight: "600" }}>{document.title}</Text>
           <Text style={{ color: palette.muted }}>{pending ? status : passage}</Text>
         </Pressable>
-        <Button p={palette} primary label={playing ? "Ⅱ" : "▶"} accessibilityLabel={playing ? "Pause" : "Play"} action={play} disabled={pending} />
+        <Button p={palette} primary label={playing ? "Ⅱ" : "▶"} accessibilityLabel={playing ? "Pause" : "Play"} action={play} disabled={controlsDisabled} />
       </View>}
       {screen !== "reader" && <View style={[ui.tabs, { borderColor: palette.line, backgroundColor: palette.bg }]}>
         <Button p={palette} label="Library" selected={screen === "library"} action={() => { controller.current?.checkpoint(); setEntries(listDocuments()); setScreen("library"); }} />
@@ -442,22 +468,26 @@ function ReaderScreen() {
     </Paper>
 
     {sheet === "speed" && <Sheet title="Playback speed" close={closeSheet} p={palette}>
-      <View style={[ui.row, { flexWrap: "wrap" }]}>{[0.75, 1, 1.25, 1.5, 2].map(value =>
+      <View style={[ui.row, { flexWrap: "wrap" }]}>{[0.75, 1, 1.25, 1.5, 1.75, 2].map(value =>
         <Button key={value} p={palette} label={`${value}×`} selected={rate === value} action={() => {
           speed.current = value; player.current?.setRate(value); setRate(value); savePreference("rate", String(value)); closeSheet();
         }} />)}</View>
     </Sheet>}
-    {sheet === "appearance" && <Sheet title="Appearance" close={closeSheet} p={palette}>
+    {sheet === "appearance" && <Sheet key="appearance" title="Appearance" close={closeSheet} p={palette}>
       <View style={ui.row}>{(["system", "light", "dark"] as const).map(value =>
         <Button key={value} p={palette} label={value[0].toUpperCase() + value.slice(1)} selected={theme === value} action={() => setTheme(value)} />)}</View>
+      <Button p={palette} label="Storage" action={() => { showLibrary(); setSheet("storage"); }} />
       <View style={ui.row}><Text style={{ color: palette.ink, flex: 1 }}>Reading text size</Text>
         <Button p={palette} label="A−" action={() => { const size = Math.max(16, fontSize - 1); setFontSize(size); savePreference("fontSize", String(size)); }} />
         <Button p={palette} label="A+" action={() => { const size = Math.min(32, fontSize + 1); setFontSize(size); savePreference("fontSize", String(size)); }} />
       </View>
     </Sheet>}
-    {sheet === "voice" && <Sheet title="Narration voice" close={closeSheet} p={palette}>
-      {!!setup && <Text style={{ color: palette.muted }}>{setup}</Text>}
-      {[...NARRATORS, { id: device ?? "device-unavailable", label: "Device voice", description: device ? "System text-to-speech · Offline ready" : "No installed offline system voice" }].map(item => {
+    {sheet === "voice" && <Sheet key="voice" title="Narration voice" close={closeSheet} p={palette}>
+      {!!setup && <View style={ui.row}>
+        <Text accessibilityLiveRegion="polite" style={{ color: palette.muted, flex: 1 }}>{setup}</Text>
+        <Button p={palette} label="Cancel" action={closeSheet} />
+      </View>}
+      {[...NARRATORS, { id: device ?? "device-unavailable", label: "Android Device", description: device ? "System text-to-speech · Offline ready" : "No installed offline system voice" }].map(item => {
         const offline = item.id === device || kokoroEngine.hasOfflineVoice(item.id);
         const disabled = !!setup || !!previewing || item.id === "device-unavailable";
         return <View key={item.id} style={ui.row}>
@@ -465,25 +495,26 @@ function ReaderScreen() {
             onPress={() => void chooseVoice(item.id, false)}
             style={{ flex: 1, minHeight: 48, justifyContent: "center", paddingHorizontal: 10, borderRadius: 8, backgroundColor: voice === item.id ? palette.highlight : palette.card }}>
             <Text style={{ color: palette.ink, fontWeight: "600" }}>{item.label}{voice === item.id ? "  ✓" : ""}</Text>
-            <Text style={{ color: palette.muted }}>{item.description}{offline && item.id !== device ? " · Offline ready" : ""}</Text>
+            <Text style={{ color: palette.muted }}>{item.description}{item.id !== device && item.id !== "device-unavailable" ? offline ? " · Ready offline" : " · Not downloaded" : ""}</Text>
           </Pressable>
           <Button p={palette} label={previewing === item.id ? "■" : "▶"} accessibilityLabel={`Preview ${item.label}`}
             disabled={disabled && previewing !== item.id} action={() => previewing === item.id ? preview.current?.abort() : void chooseVoice(item.id, true)} />
         </View>;
       })}
     </Sheet>}
-    {sheet === "contents" && <Sheet title="Passages" close={closeSheet} p={palette}>
-      <FlatList style={{ maxHeight: 280 }} data={chunks} keyExtractor={chunk => chunk.id}
-        initialScrollIndex={chunks.length ? Math.min(state.index, chunks.length - 1) : undefined}
-        getItemLayout={(_, index) => ({ index, length: 52, offset: 52 * index })}
-        renderItem={({ item, index }) => <Pressable accessibilityRole="button"
-          onPress={() => { closeSheet(); selectPassage(index); }}
-          style={{ height: 52, padding: 8, backgroundColor: index === state.index ? palette.highlight : palette.bg }}>
-          <Text numberOfLines={2} style={{ color: palette.ink }}>{index + 1}. {item.text.trim()}</Text>
-        </Pressable>} />
+    {sheet === "contents" && <Sheet key="contents" title="Contents" close={closeSheet} p={palette}>
+      <Contents key={document.id} id={document.id} format={totalPages ? "PDF" : active.format}
+        current={totalPages ? pdfPage : chunks[navigateTo ?? state.index]?.startChar ?? 0}
+        total={totalPages || chunks.length} read={entry => jump(entry, false)} play={entry => jump(entry, true)} p={palette} />
     </Sheet>}
-    {library && <Library palette={palette} entries={library} activeId={document.id} close={() => setLibrary(null)}
-      open={switchDocument} remove={removeDocument} rename={updateTitle} storage={storage} busy={libraryBusy} clear={clearAudio}
-      exportFile={(id, kind) => void runLibraryOperation(() => kind === "document" ? exportDocument(id) : exportNarration(id, voice))} />}
+    {sheet === "storage" && <Sheet key="storage" title="Storage" close={closeSheet} p={palette}>
+      <Text style={{ color: palette.ink }}>Original documents · {(storage.documents / 1_000_000).toFixed(1)} MB</Text>
+      <Text style={{ color: palette.ink }}>Offline voice · {(storage.voiceBytes / 1_000_000).toFixed(1)} MB</Text>
+      <Text style={{ color: palette.ink }}>Generated audio · {(storage.audioBytes / 1_000_000).toFixed(1)} MB</Text>
+      <Button p={palette} label="Clear generated audio" action={clearAudio} disabled={libraryBusy || !storage.audioBytes} />
+    </Sheet>}
+    {options && <DocumentOptions item={options} p={palette} close={() => setOptions(undefined)} rename={updateTitle}
+      remove={removeDocument} exportFile={(id, kind) => void runLibraryOperation(() =>
+        kind === "document" ? exportDocument(id) : exportNarration(id, voice))} />}
   </SafeAreaView>;
 }

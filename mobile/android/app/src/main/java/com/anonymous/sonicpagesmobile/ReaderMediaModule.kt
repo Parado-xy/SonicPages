@@ -56,6 +56,42 @@ class ReaderMediaModule(private val context: ReactApplicationContext) : ReactCon
     }
   }
 
+  @ReactMethod
+  fun pdfContents(uri: String, promise: Promise) {
+    executor.execute {
+      try {
+        val source = File(Uri.parse(uri).path ?: error("Missing PDF path")).canonicalFile
+        require(source.toPath().startsWith(context.filesDir.canonicalFile.toPath()))
+        com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(context)
+        val memory = com.tom_roush.pdfbox.io.MemoryUsageSetting.setupMixed(8L * 1024 * 1024, 128L * 1024 * 1024)
+        memory.setTempDir(context.cacheDir)
+        val result = Arguments.createArray()
+        com.tom_roush.pdfbox.pdmodel.PDDocument.load(source, memory).use { document ->
+          var count = 0
+          fun collect(parent: com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlineNode, depth: Int) {
+            if (depth > 24) return
+            var item = parent.firstChild
+            while (item != null && count++ < 2000) {
+              val bookmark = item
+              val destination = runCatching { bookmark.findDestinationPage(document) }.getOrNull()
+              val page = destination?.let { document.pages.indexOf(it) } ?: -1
+              val title = bookmark.title?.trim().orEmpty()
+              if (page >= 0 && title.isNotEmpty()) result.pushMap(Arguments.createMap().apply {
+                putString("title", title)
+                putInt("depth", depth)
+                putInt("page", page)
+              })
+              collect(bookmark, depth + 1)
+              item = bookmark.nextSibling
+            }
+          }
+          document.documentCatalog.documentOutline?.let { collect(it, 0) }
+        }
+        promise.resolve(result)
+      } catch (error: Exception) { promise.reject("PDF_CONTENTS", error) }
+    }
+  }
+
   private fun openPdf(uri: String): PdfRenderer {
     val source = File(Uri.parse(uri).path!!).canonicalFile
     require(source.toPath().startsWith(context.filesDir.canonicalFile.toPath()))

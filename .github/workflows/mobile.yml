@@ -32,9 +32,16 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npx expo export --platform android --output-dir "$RUNNER_TEMP/sonicpages-export"
+      - name: Free space for Android packaging
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android/sdk/system-images
+          df -h .
       - name: Build standalone Android APK
         working-directory: mobile/android
-        run: bash gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a
+        run: bash gradlew --stacktrace :app:assembleRelease -PreactNativeArchitectures=arm64-v8a
+      - name: Report disk space after build failure
+        if: failure()
+        run: df -h .
       - name: Verify APK contains the JavaScript bundle
         run: unzip -l android/app/build/outputs/apk/release/app-release.apk assets/index.android.bundle
       - uses: actions/upload-artifact@v4
