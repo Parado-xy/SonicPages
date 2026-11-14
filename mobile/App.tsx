@@ -1,5 +1,11 @@
+import { useFonts } from "expo-font";
+import { Newsreader_400Regular } from "@expo-google-fonts/newsreader/400Regular";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
+import { ThemeProvider, useTheme } from "./src/theme/ThemeProvider";
+import { dark, serif } from "./src/theme/tokens";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, AppState, FlatList, Image, Pressable, ScrollView, StatusBar, Text, View, useColorScheme, type GestureResponderEvent } from "react-native";
+import { ActivityIndicator, Alert, AppState, FlatList, Image, Pressable, ScrollView, StatusBar, Text, View, type GestureResponderEvent } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
@@ -9,7 +15,7 @@ import { NarrationController, type NarrationState } from "./src/narration/contro
 import { documentChunks } from "./src/reader/pdfPages";
 import { PdfReader } from "./src/reader/PdfReader";
 import { Library } from "./src/reader/Library";
-import { Button, Cover, LibraryShelf, Paper, Sheet, dark, light, ui } from "./src/reader/Design";
+import { Button, Cover, LibraryShelf, Paper, Sheet, ui } from "./src/reader/Design";
 import { deleteThumbnail, readerMedia } from "./src/storage/thumbnails";
 import { NARRATORS } from "./src/vendor/kokoro/models";
 import { Reader } from "./src/reader/Reader";
@@ -26,16 +32,19 @@ const DEMO = {
 };
 
 export default function App() {
-  return <SafeAreaProvider><ReaderScreen /></SafeAreaProvider>;
+  const [loaded, error] = useFonts({ [serif]: Newsreader_400Regular });
+  if (!loaded && !error) return null;
+  return <GestureHandlerRootView style={{ flex: 1 }}>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <BottomSheetModalProvider><ReaderScreen /></BottomSheetModalProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
+  </GestureHandlerRootView>;
 }
 
 function ReaderScreen() {
-  const system = useColorScheme();
-  const [theme, setTheme] = useState<"system" | "light" | "dark">(() => {
-    const saved = preference("theme");
-    return saved === "light" || saved === "dark" ? saved : "system";
-  });
-  const palette = (theme === "system" ? system : theme) === "dark" ? dark : light;
+  const { theme, setTheme, palette } = useTheme();
   const [screen, setScreen] = useState<"library" | "reader" | "player">("library");
   const [sheet, setSheet] = useState<"speed" | "voice" | "appearance" | "contents">();
   const [fontSize, setFontSize] = useState(() => Number(preference("fontSize")) || 21);
@@ -440,7 +449,7 @@ function ReaderScreen() {
     </Sheet>}
     {sheet === "appearance" && <Sheet title="Appearance" close={closeSheet} p={palette}>
       <View style={ui.row}>{(["system", "light", "dark"] as const).map(value =>
-        <Button key={value} p={palette} label={value[0].toUpperCase() + value.slice(1)} selected={theme === value} action={() => { setTheme(value); savePreference("theme", value); }} />)}</View>
+        <Button key={value} p={palette} label={value[0].toUpperCase() + value.slice(1)} selected={theme === value} action={() => setTheme(value)} />)}</View>
       <View style={ui.row}><Text style={{ color: palette.ink, flex: 1 }}>Reading text size</Text>
         <Button p={palette} label="A−" action={() => { const size = Math.max(16, fontSize - 1); setFontSize(size); savePreference("fontSize", String(size)); }} />
         <Button p={palette} label="A+" action={() => { const size = Math.min(32, fontSize + 1); setFontSize(size); savePreference("fontSize", String(size)); }} />
