@@ -72,13 +72,19 @@ export default function App() {
       const sound = await kokoro.generateAudio(sample, VOICE, 1);
       if (generation !== generationRef.current) { await sound.unloadAsync(); return; }
       soundRef.current = sound;
+      const loadedStatus = await sound.getStatusAsync();
+      console.log('SonicPages audio loaded status:', JSON.stringify(loadedStatus));
       sound.setOnPlaybackStatusUpdate(status => {
+        if (!status.isLoaded) { console.error('SonicPages audio playback status error:', status.error); return; }
+        if (status.didJustFinish) console.log('SonicPages audio playback finished');
         if (!status.isLoaded) return;
         if (status.didJustFinish && generation === generationRef.current) {
           void narrate(index + 1);
         }
       });
-      await sound.playAsync();
+      const playbackStatus = await sound.playAsync();
+      console.log('SonicPages audio playAsync result:', JSON.stringify(playbackStatus));
+      if (!playbackStatus.isLoaded || !playbackStatus.isPlaying) throw new Error('Audio player did not enter playing state');
       setPlaying(true);
       setMessage("Listening · passage highlighting (word alignment pending)");
     } catch (error) { setMessage("Narration failed"); Alert.alert("Narration error", String(error)); }
