@@ -1,13 +1,16 @@
 const HEADER_BYTES = 44;
 
-export function encodeWav(samples: Float32Array, sampleRate: number): Uint8Array<ArrayBuffer> {
-  const bytes = new Uint8Array(HEADER_BYTES + samples.length * 2);
+export function wavHeader(dataLength: number, sampleRate: number): Uint8Array<ArrayBuffer> {
+  if (!Number.isInteger(dataLength) || dataLength < 0 || dataLength % 2 || dataLength > 0xffffffff - 36) {
+    throw new Error("Audio is too large or invalid for WAV export.");
+  }
+  const bytes = new Uint8Array(HEADER_BYTES);
   const view = new DataView(bytes.buffer);
   const tag = (offset: number, value: string) => {
     for (let i = 0; i < value.length; i++) bytes[offset + i] = value.charCodeAt(i);
   };
   tag(0, "RIFF");
-  view.setUint32(4, bytes.length - 8, true);
+  view.setUint32(4, 36 + dataLength, true);
   tag(8, "WAVE");
   tag(12, "fmt ");
   view.setUint32(16, 16, true);
@@ -18,7 +21,14 @@ export function encodeWav(samples: Float32Array, sampleRate: number): Uint8Array
   view.setUint16(32, 2, true);
   view.setUint16(34, 16, true);
   tag(36, "data");
-  view.setUint32(40, bytes.length - HEADER_BYTES, true);
+  view.setUint32(40, dataLength, true);
+  return bytes;
+}
+
+export function encodeWav(samples: Float32Array, sampleRate: number): Uint8Array<ArrayBuffer> {
+  const bytes = new Uint8Array(HEADER_BYTES + samples.length * 2);
+  bytes.set(wavHeader(samples.length * 2, sampleRate));
+  const view = new DataView(bytes.buffer);
   samples.forEach((sample, index) => {
     const clamped = Math.max(-1, Math.min(1, sample));
     view.setInt16(HEADER_BYTES + index * 2, Math.round(clamped * (clamped < 0 ? 32768 : 32767)), true);

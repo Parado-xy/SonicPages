@@ -19,7 +19,7 @@ import java.io.Writer
 
 class PdfTextPackage : ReactPackage {
   override fun createNativeModules(context: ReactApplicationContext): List<NativeModule> =
-    listOf(PdfTextModule(context))
+    listOf(PdfTextModule(context), FileExportModule(context))
 
   override fun createViewManagers(context: ReactApplicationContext): List<ViewManager<*, *>> =
     emptyList()

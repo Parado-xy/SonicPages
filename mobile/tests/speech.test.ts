@@ -1,6 +1,6 @@
 import { deepEqual, equal, ok, throws } from "node:assert/strict";
 import { test } from "node:test";
-import { encodeWav, wavDurationMs } from "../src/audio/wav";
+import { encodeWav, wavDurationMs, wavHeader } from "../src/audio/wav";
 import { splitIntoChunks } from "../src/reader/chunks";
 import { kokoroTokens, phonemize } from "../src/speech/phonemize";
 import { assertPlayableWaveform, inspectWaveform } from "../src/speech/waveformDiagnostics";
@@ -40,4 +40,15 @@ test("silent, non-finite and anomalously long audio cannot enter the playback qu
   throws(() => assertPlayableWaveform(inspectWaveform([NaN])), /Invalid/);
   throws(() => assertPlayableWaveform(inspectWaveform(new Float32Array(24_000 * 31).fill(0.1))), /long/);
   assertPlayableWaveform(inspectWaveform([0, 0.25, -0.25]));
+});
+
+test("a WAV export header describes the combined PCM payload", () => {
+  const first = encodeWav(Float32Array.of(0.25, -0.25), 24_000);
+  const second = encodeWav(Float32Array.of(0.5, -0.5, 0.1), 24_000);
+  const dataLength = first.length + second.length - 88;
+  const header = wavHeader(dataLength, 24_000);
+  equal(new DataView(header.buffer).getUint32(4, true), 36 + dataLength);
+  equal(wavDurationMs(header, dataLength + 44, 24_000), 5 * 1000 / 24_000);
+  throws(() => wavHeader(3, 24_000), /invalid/);
+  throws(() => wavHeader(0x1_0000_0000, 24_000), /large/);
 });

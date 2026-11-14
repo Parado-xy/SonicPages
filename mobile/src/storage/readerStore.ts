@@ -1,3 +1,5 @@
+import type { File } from "expo-file-system";
+import { keepOriginal, originalFile } from "./originalFiles";
 import { openDatabaseSync } from "expo-sqlite";
 import type { ReadingPosition } from "../narration/controller";
 
@@ -43,19 +45,30 @@ export function loadDocument(demo: ReaderDocument): SavedDocument {
   `, demo.id) ?? { ...demo, index: 0, positionMs: 0 };
 }
 
-export function saveDocument(title: string, content: string): SavedDocument {
+export function saveDocument(title: string, content: string, source: File): SavedDocument {
   const store = db();
-  const existing = store.getFirstSync<SavedDocument>(`
+  const matches = store.getAllSync<SavedDocument>(`
     SELECT ${documentProjection} FROM ${documentTables}
-    WHERE documents.title = ? AND content = ? LIMIT 1
+    WHERE documents.title = ? AND content = ? ORDER BY documents.id
   `, title, content);
+  const hash = source.md5;
+  const existing = matches.find(document => {
+    const original = originalFile(document.id);
+    return hash !== null && original.md5 === hash;
+  }) ?? matches.find(document => !originalFile(document.id).exists);
   const saved = existing ?? { id: "txt-" + Date.now() + "-" + Math.random().toString(36).slice(2),
     title, content, index: 0, positionMs: 0 };
-  store.withTransactionSync(() => {
-    if (!existing) store.runSync("INSERT INTO documents (id, title, content) VALUES (?, ?, ?)",
-      saved.id, title, content);
-    setActiveDocument(saved.id);
-  });
+  keepOriginal(saved.id, source);
+  try {
+    store.withTransactionSync(() => {
+      if (!existing) store.runSync("INSERT INTO documents (id, title, content) VALUES (?, ?, ?)",
+        saved.id, title, content);
+      setActiveDocument(saved.id);
+    });
+  } catch (error) {
+    if (!existing) originalFile(saved.id).delete();
+    throw error;
+  }
   return saved;
 }
 
@@ -91,4 +104,12 @@ export function renameDocument(id: string, title: string) {
   if (!name) throw new Error("Enter a document title.");
   db().runSync(`INSERT INTO document_titles (document_id, title) VALUES (?, ?)
     ON CONFLICT(document_id) DO UPDATE SET title = excluded.title`, id, name);
+}
+
+
+export function getExportDocument(id: string) {
+  const document = db().getFirstSync<{ title: string; content: string }>(
+    "SELECT title, content FROM documents WHERE id = ?", id);
+  if (!document) throw new Error("This document is missing from your library.");
+  return document;
 }
