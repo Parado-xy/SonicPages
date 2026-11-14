@@ -21,6 +21,7 @@ export default function App() {
   const [message, setMessage] = useState("Model not installed");
   const soundRef = useRef<Audio.Sound | null>(null);
   const generationRef = useRef(0);
+  const inferenceInProgressRef = useRef(false);
   const chunks = useMemo(() => splitIntoChunks("current-document", content), [content]);
   const chunksRef = useRef(chunks);
   chunksRef.current = chunks;
@@ -56,15 +57,19 @@ export default function App() {
   };
 
   const narrate = async (index: number) => {
+    if (inferenceInProgressRef.current) return;
     if (!ready) { Alert.alert("Prepare Kokoro first", "Download and load the speech model before listening."); return; }
     if (index >= chunksRef.current.length) { await stop(); return; }
     await stop();
     const generation = generationRef.current;
     setActiveChunk(index);
+    inferenceInProgressRef.current = true;
     setBusy(true);
-    setMessage("Generating passage " + (index + 1) + " locally…");
+    setMessage("Generating short diagnostic sample locally…");
     try {
-      const sound = await kokoro.generateAudio(chunksRef.current[index].text, VOICE, 1);
+      // Limit the first on-device inference test to a short sample to avoid long stalls.
+      const sample = chunksRef.current[index].text.trim().split(/\s+/).slice(0, 8).join(" ");
+      const sound = await kokoro.generateAudio(sample, VOICE, 1);
       if (generation !== generationRef.current) { await sound.unloadAsync(); return; }
       soundRef.current = sound;
       sound.setOnPlaybackStatusUpdate(status => {
@@ -77,7 +82,7 @@ export default function App() {
       setPlaying(true);
       setMessage("Listening · passage highlighting (word alignment pending)");
     } catch (error) { setMessage("Narration failed"); Alert.alert("Narration error", String(error)); }
-    finally { if (generation === generationRef.current) setBusy(false); }
+    finally { inferenceInProgressRef.current = false; if (generation === generationRef.current) setBusy(false); }
   };
 
   const toggle = async () => {
