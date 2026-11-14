@@ -4,6 +4,8 @@ import { extractEpubCover } from "../imports/epub";
 import { originalFile } from "./originalFiles";
 
 export const readerMedia = NativeModules.SonicPagesReaderMedia as {
+  pdfPage(uri: string, page: number): Promise<{uri: string; aspect: number}>;
+  pdfHighlight(uri: string, page: number, text: string): Promise<{x: number; y: number; width: number; height: number}[]>;
   thumbnail(uri: string): Promise<string>;
   deviceVoice(): Promise<string | null>;
   synthesize(text: string, voiceId: string): Promise<string>;
@@ -43,4 +45,12 @@ async function createThumbnail(id: string, format: string) {
   cover.create({ overwrite: true });
   cover.write(image.data);
   return cover.uri;
+}
+
+export async function deleteThumbnail(id: string) {
+  await pending.get(id);
+  for (const extension of ["jpg", "png", "webp"]) {
+    const cover = new File(folder, id + "." + extension);
+    if (cover.exists) cover.delete();
+  }
 }

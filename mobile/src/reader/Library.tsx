@@ -5,7 +5,8 @@ import type { LibraryEntry } from "../storage/readerStore";
 import { Paper, type Palette } from "./Design";
 import { styles } from "./styles";
 
-export function Library({ entries, activeId, close, open, rename, storage, busy, clear, exportFile, palette }: {
+export function Library({ entries, activeId, close, open, rename, storage, busy, clear, exportFile, palette, remove }: {
+  remove(id: string, title: string): void;
   palette: Palette;
   entries: LibraryEntry[];
   activeId: string;
@@ -67,6 +68,10 @@ export function Library({ entries, activeId, close, open, rename, storage, busy,
                     { text: "Export audio", onPress: () => exportFile(item.id, "audio") },
                   ], { cancelable: true })}>
                   <Text style={styles.importText}>Options</Text>
+                </Pressable>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Delete ${item.title}`}
+                  disabled={busy} onPress={() => remove(item.id, item.title)} style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: 6 }}>
+                  <Text style={{ color: palette.accent }}>Delete</Text>
                 </Pressable>
               </View>
             )} />

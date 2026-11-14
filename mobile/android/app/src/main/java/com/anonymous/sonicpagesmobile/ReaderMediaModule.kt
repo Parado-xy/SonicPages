@@ -5,6 +5,8 @@ import android.graphics.Color
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
+import com.facebook.react.bridge.Arguments
 import android.os.ParcelFileDescriptor
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
@@ -26,21 +28,54 @@ class ReaderMediaModule(private val context: ReactApplicationContext) : ReactCon
   override fun getName() = "SonicPagesReaderMedia"
 
   @ReactMethod
-  fun thumbnail(uri: String, promise: Promise) {
+  fun thumbnail(uri: String, promise: Promise) = render(uri, 0, 384, promise, true)
+
+  @ReactMethod
+  fun pdfPage(uri: String, page: Int, promise: Promise) = render(uri, page, 1440, promise, false)
+
+  @ReactMethod
+  fun pdfHighlight(uri: String, page: Int, query: String, promise: Promise) {
+    executor.execute {
+      val result = Arguments.createArray()
+      try {
+        if (Build.VERSION.SDK_INT >= 35 && query.trim().length >= 3) {
+          openPdf(uri).use { pdf -> pdf.openPage(page).use { sheet ->
+            val matches = sheet.searchText(query.trim())
+            if (matches.size == 1) matches[0].bounds.forEach { bounds ->
+              val rect = Arguments.createMap()
+              rect.putDouble("x", bounds.left.toDouble() / sheet.width)
+              rect.putDouble("y", bounds.top.toDouble() / sheet.height)
+              rect.putDouble("width", bounds.width().toDouble() / sheet.width)
+              rect.putDouble("height", bounds.height().toDouble() / sheet.height)
+              result.pushMap(rect)
+            }
+          } }
+        }
+        promise.resolve(result)
+      } catch (error: Exception) { promise.reject("PDF_HIGHLIGHT", error) }
+    }
+  }
+
+  private fun openPdf(uri: String): PdfRenderer {
+    val source = File(Uri.parse(uri).path!!).canonicalFile
+    require(source.toPath().startsWith(context.filesDir.canonicalFile.toPath()))
+    val descriptor = ParcelFileDescriptor.open(source, ParcelFileDescriptor.MODE_READ_ONLY)
+    return try { PdfRenderer(descriptor) } catch (error: Exception) {
+      descriptor.close()
+      throw error
+    }
+  }
+
+  private fun render(uri: String, pageIndex: Int, size: Int, promise: Promise, thumbnail: Boolean) {
     executor.execute {
       try {
-        val source = File(Uri.parse(uri).path!!).canonicalFile
-        require(source.toPath().startsWith(context.filesDir.canonicalFile.toPath()))
-        val target = File.createTempFile("sonic-cover-", ".jpg", context.cacheDir)
+        val target = File.createTempFile("sonic-page-", ".jpg", context.cacheDir)
+        var aspect = 1.0
         try {
-          val descriptor = ParcelFileDescriptor.open(source, ParcelFileDescriptor.MODE_READ_ONLY)
-          val renderer = try { PdfRenderer(descriptor) } catch (error: Exception) {
-            descriptor.close()
-            throw error
-          }
-          renderer.use {
-            it.openPage(0).use { page ->
-              val scale = 384.0 / maxOf(page.width, page.height)
+          openPdf(uri).use {
+            it.openPage(pageIndex).use { page ->
+              aspect = page.width.toDouble() / page.height
+              val scale = size.toDouble() / maxOf(page.width, page.height)
               val bitmap = Bitmap.createBitmap((page.width * scale).roundToInt().coerceAtLeast(1),
                 (page.height * scale).roundToInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888)
               try {
@@ -50,7 +85,12 @@ class ReaderMediaModule(private val context: ReactApplicationContext) : ReactCon
               } finally { bitmap.recycle() }
             }
           }
-          promise.resolve(Uri.fromFile(target).toString())
+          val output = Uri.fromFile(target).toString()
+          if (thumbnail) promise.resolve(output)
+          else promise.resolve(Arguments.createMap().apply {
+            putString("uri", output)
+            putDouble("aspect", aspect)
+          })
         } catch (error: Exception) {
           target.delete()
           throw error

@@ -82,3 +82,12 @@ export function deleteGeneratedAudio() {
   const audio = new Directory(root, "audio");
   if (audio.exists) audio.delete();
 }
+
+export function deleteDocumentAudio(id: string) {
+  const folder = new Directory(root, "audio");
+  if (!folder.exists) return;
+  const suffix = "_" + id + "_";
+  for (const entry of folder.list()) {
+    if (entry instanceof File && entry.name.includes(suffix)) entry.delete();
+  }
+}

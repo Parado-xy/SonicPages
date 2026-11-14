@@ -1,7 +1,7 @@
 import { File, Paths } from "expo-file-system";
 import { Alert, NativeModules } from "react-native";
 import { wavHeader } from "../audio/wav";
-import { splitIntoChunks } from "../reader/chunks";
+import { documentChunks } from "../reader/pdfPages";
 import { cachedPassageAudio } from "../speech/kokoroEngine";
 import { SAMPLE_RATE } from "../vendor/kokoro/kokoroOnnx";
 import { originalFile } from "./originalFiles";
@@ -35,8 +35,8 @@ export async function exportDocument(id: string) {
 }
 
 export async function exportNarration(id: string, narrator?: string) {
-  const { title, content } = getExportDocument(id);
-  const passages = splitIntoChunks(id, content);
+  const { title, content, pageStarts } = getExportDocument(id);
+  const passages = documentChunks(id, content, pageStarts);
   const clips = passages.flatMap(chunk => {
     const clip = cachedPassageAudio(chunk, narrator);
     return clip ? [new File(clip.localAudioUri)] : [];
