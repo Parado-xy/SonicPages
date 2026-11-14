@@ -20,15 +20,12 @@ export async function readDocument(file: File, name: string, mime?: string): Pro
     ({ content, title } = extractEpubDocument(await file.bytes()));
   } else if (extension === "pdf" || mime === PDF) {
     ({ content, title, pageStarts } = await readPdf(file));
-    if (!/[\p{L}\p{N}]/u.test(content)) {
-      throw new Error("This PDF has no readable text. Scanned PDFs require OCR before import.");
-    }
   } else if (extension === "txt" || mime === TEXT) {
     content = await file.text();
   } else {
     throw new Error("Choose a TXT, EPUB, or text-based PDF.");
   }
-  if (!content.trim()) throw new Error("This document is empty.");
+  if (!content.trim() && !pageStarts?.length) throw new Error("This document is empty.");
   if (content.length > 4_000_000) throw new Error("This document contains too much text to import.");
   return { content, title, pageStarts };
 }
@@ -47,5 +44,5 @@ export async function readPdf(file: File) {
     if (normalized) content += normalized + "\n\n";
     return start;
   });
-  return { content: content.trimEnd(), title, pageStarts };
+  return { content: /[\p{L}\p{N}]/u.test(content) ? content.trimEnd() : "", title, pageStarts };
 }

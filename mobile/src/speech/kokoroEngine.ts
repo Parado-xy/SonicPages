@@ -28,24 +28,24 @@ class KokoroEngine implements LocalSpeechEngine {
     return !!voice && !!installedAsset(MODEL.filename, MODEL.bytes) && !!installedAsset(voice.filename, voice.bytes);
   }
 
-  async prepare(onStatus: (message: string) => void, offlineOnly = false, id = this.narrator) {
+  async prepare(onStatus: (message: string) => void, offlineOnly = false, id = this.narrator, signal?: AbortSignal) {
     if (id.startsWith("device:")) return;
     if (this.setup) await this.setup;
     if (this.session && this.voices.has(id)) return;
-    this.setup = this.install(onStatus, offlineOnly, id);
+    this.setup = this.install(onStatus, offlineOnly, id, signal);
     try { await this.setup; } finally { this.setup = undefined; }
   }
 
-  private async install(onStatus: (message: string) => void, offlineOnly: boolean, id: string) {
+  private async install(onStatus: (message: string) => void, offlineOnly: boolean, id: string, signal?: AbortSignal) {
     const asset = NARRATORS.find(item => item.id === id);
     if (!asset) throw new Error("Unknown narration voice.");
     const localModel = installedAsset(MODEL.filename, MODEL.bytes);
     const localVoice = installedAsset(asset.filename, asset.bytes);
     if (offlineOnly && (!localModel || !localVoice)) throw new Error("Offline voice files are missing");
     const model = localModel ?? await installAsset(MODEL.filename, MODEL.url, MODEL.bytes,
-      progress => onStatus("Downloading speech model " + Math.round(progress * 100) + "%"));
+      progress => onStatus("Downloading speech model " + Math.round(progress * 100) + "%"), signal);
     const voice = localVoice ?? await installAsset(asset.filename, asset.url, asset.bytes,
-      progress => onStatus("Downloading voice " + Math.round(progress * 100) + "%"));
+      progress => onStatus("Downloading voice " + Math.round(progress * 100) + "%"), signal);
     this.voices.set(id, new Float32Array(await voice.arrayBuffer()));
     onStatus("Loading Kokoro…");
     this.session ??= await openKokoro(model.uri);

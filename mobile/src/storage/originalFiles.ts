@@ -21,3 +21,7 @@ export function keepOriginal(id: string, source: File) {
     if (leftover.exists) leftover.delete();
   }
 }
+
+export function originalsSize() {
+  return originals.exists ? originals.list().reduce((total, file) => total + (file instanceof File ? file.size : 0), 0) : 0;
+}

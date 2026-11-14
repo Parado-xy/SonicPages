@@ -20,6 +20,7 @@ export async function installAsset(
   url: string,
   bytes: number,
   onProgress?: (progress: number) => void,
+  signal?: AbortSignal,
 ): Promise<File> {
   const installed = installedAsset(filename, bytes);
   if (installed) return installed;
@@ -27,16 +28,21 @@ export async function installAsset(
   const file = new File(assets, filename);
   const temporary = new File(assets, filename + ".download");
   if (temporary.exists) temporary.delete();
-  try {
-    const download = legacy.createDownloadResumable(url, temporary.uri, {}, progress => {
+  if (signal?.aborted) throw new Error("Voice download canceled.");
+  const download = legacy.createDownloadResumable(url, temporary.uri, {}, progress => {
       onProgress?.(Math.min(1, progress.totalBytesWritten / bytes));
     });
+  const cancel = () => { void download.cancelAsync().catch(console.warn); };
+  signal?.addEventListener("abort", cancel, { once: true });
+  try {
     const result = await download.downloadAsync();
+    if (signal?.aborted) throw new Error("Voice download canceled.");
     if (result?.status !== 200 || temporary.size !== bytes) throw new Error("Incomplete download for " + filename);
     if (file.exists) file.delete();
     temporary.move(file);
     return file;
   } finally {
+    signal?.removeEventListener("abort", cancel);
     const unfinished = new File(assets, filename + ".download");
     if (unfinished.exists) unfinished.delete();
   }

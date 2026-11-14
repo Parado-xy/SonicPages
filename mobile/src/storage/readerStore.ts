@@ -7,7 +7,7 @@ import type { ReadingPosition } from "../narration/controller";
 export type ReaderDocument = { id: string; title: string; content: string };
 export type SavedDocument = ReaderDocument & ReadingPosition & { pageStarts?: number[]; sourceName?: string };
 
-export type LibraryEntry = Pick<SavedDocument, "id" | "title" | "index"> & { format: string };
+export type LibraryEntry = Pick<SavedDocument, "id" | "title" | "index"> & { format: string; sourceName?: string };
 
 type DocumentRow = SavedDocument & { sourceName: string; automaticTitle: string | null; overrideTitle: string | null; pageJson: string | null };
 function hydrate(row: DocumentRow): SavedDocument {
@@ -52,7 +52,7 @@ function db() {
 
 export function loadDocument(demo: ReaderDocument): SavedDocument {
   const store = db();
-  store.runSync(`INSERT OR IGNORE INTO documents (id, title, content)
+  if (preference("libraryInitialized") !== "1") store.runSync(`INSERT OR IGNORE INTO documents (id, title, content)
     SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM documents)`, demo.id, demo.title, demo.content);
   const row = store.getFirstSync<DocumentRow>(`
     SELECT ${documentProjection} FROM ${documentTables}

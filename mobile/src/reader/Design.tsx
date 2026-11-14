@@ -1,5 +1,8 @@
+import { BottomSheetBackdrop, BottomSheetModal, BottomSheetView } from "@gorhom/bottom-sheet";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRef } from "react";
 import { useEffect, useState, type ReactNode } from "react";
-import { FlatList, Image, ImageBackground, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, Image, ImageBackground, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { thumbnail } from "../storage/thumbnails";
 import type { LibraryEntry } from "../storage/readerStore";
 
@@ -46,40 +49,50 @@ export function Cover({ id, format, title, p }: { id: string; format: string; ti
   return <View style={[ui.cover, { backgroundColor: p.card, borderColor: p.line }]}>
     {uri ? <Image source={{ uri }} resizeMode="contain" accessibilityLabel={`${title} cover`}
       onError={() => setUri(undefined)} style={StyleSheet.absoluteFill} />
-      : <><Text numberOfLines={4} style={[ui.title, { color: p.ink, textAlign: "center" }]}>{title}</Text>
+      : <><Image source={require("../../assets/sonicpages-icon.png")} accessibilityIgnoresInvertColors style={{ width: 34, height: 34, borderRadius: 6, marginBottom: 8 }} /><Text numberOfLines={4} style={[ui.title, { color: p.ink, textAlign: "center" }]}>{title}</Text>
         <Text style={{ color: p.muted, marginTop: 8 }}>{format}</Text></>}
   </View>;
 }
 
 export function Sheet({ title, close, p, children }: { title: string; close(): void; p: Palette; children: ReactNode }) {
-  return <Modal transparent animationType="slide" onRequestClose={close}>
-    <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "#0007" }}>
-      <Pressable accessibilityLabel="Close panel" onPress={close} style={{ flex: 1 }} />
-      <View style={{ backgroundColor: p.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 28, gap: 12 }}>
-        <View style={ui.row}><Text accessibilityRole="header" style={[ui.heading, { color: p.ink }]}>{title}</Text><Button p={p} label="Done" action={close} /></View>
-        {children}
-      </View>
-    </View>
-  </Modal>;
+  const modal = useRef<BottomSheetModal>(null);
+  const { bottom } = useSafeAreaInsets();
+  useEffect(() => { modal.current?.present(); }, []);
+  return <BottomSheetModal ref={modal} onDismiss={close} enablePanDownToClose
+    backgroundStyle={{ backgroundColor: p.bg }} handleIndicatorStyle={{ backgroundColor: p.line }}
+    backdropComponent={props => <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} />}>
+    <BottomSheetView accessibilityViewIsModal style={{ paddingHorizontal: 20, paddingBottom: bottom + 16, gap: 12 }}>
+      <View style={ui.row}><Text accessibilityRole="header" style={[ui.heading, { color: p.ink }]}>{title}</Text><Button p={p} label="Done" action={close} /></View>
+      {children}
+    </BottomSheetView>
+  </BottomSheetModal>;
 }
 
-export function LibraryShelf({ entries, p, active, open, play, playing, controls, disabled }: {
-  entries: LibraryEntry[]; p: Palette; active: LibraryEntry; open(id: string): void; play(): void; playing: boolean; controls(): void; disabled?: boolean;
+export function LibraryShelf({ entries, p, active, open, play, playing, importFile, options, importing, disabled }: {
+  entries: LibraryEntry[]; p: Palette; active: LibraryEntry; open(id: string): void; play(): void; playing: boolean; importFile(): void; options(item: LibraryEntry): void; importing?: { raw: string; title: string }; disabled?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [format, setFormat] = useState("All");
-  const [search, setSearch] = useState(false);
   const filtered = entries.filter(item => (format === "All" || item.format === format) &&
     item.title.toLowerCase().includes(query.trim().toLowerCase()));
   return <FlatList data={filtered} keyExtractor={item => item.id} numColumns={2} keyboardShouldPersistTaps="handled"
     contentContainerStyle={{ padding: 10, paddingBottom: 18 }}
     ListHeaderComponent={<View style={{ gap: 10, paddingHorizontal: 6, paddingBottom: 10 }}>
+      <View style={ui.row}>
+        <TextInput accessibilityLabel="Search library" placeholder="Search library" placeholderTextColor={p.muted}
+          value={query} onChangeText={setQuery} style={{ flex: 1, minHeight: 48, color: p.ink, backgroundColor: p.card,
+            borderColor: p.line, borderWidth: 1, borderRadius: 10, padding: 10 }} />
+        <Button p={p} primary label="+ Import" action={importFile} disabled={!!importing} />
+      </View>
       <View style={[ui.row, { flexWrap: "wrap" }]}>
         {["All", "EPUB", "PDF", "TXT"].map(item => <Button key={item} p={p} label={item} selected={format === item} action={() => setFormat(item)} />)}
-        <Button p={p} label={search ? "Close search" : "Search"} action={() => { setSearch(!search); setQuery(""); }} />
       </View>
-      {search && <TextInput autoFocus accessibilityLabel="Search documents" placeholder="Search documents" placeholderTextColor={p.muted}
-        value={query} onChangeText={setQuery} style={{ color: p.ink, backgroundColor: p.card, borderColor: p.line, borderWidth: 1, borderRadius: 8, padding: 12 }} />}
+      {importing && <View accessibilityLiveRegion="polite" style={{ padding: 12, borderRadius: 10, backgroundColor: p.card }}>
+        <Text style={{ color: p.ink }}>Importing…</Text>
+        <Text numberOfLines={2} style={{ color: p.muted }}>{importing.raw}</Text>
+        <Text style={[ui.title, { color: p.ink }]}>→ {importing.title}</Text>
+      </View>}
+      {!!entries.length && !query.trim() && !importing && <>
       <Text style={[ui.section, { color: p.ink }]}>Continue listening</Text>
       <View style={[ui.row, { padding: 10, backgroundColor: p.card, borderRadius: 10, borderColor: p.line, borderWidth: StyleSheet.hairlineWidth }]}>
         <Pressable accessibilityRole="button" onPress={() => open(active.id)} style={{ flex: 1 }}>
@@ -88,12 +101,21 @@ export function LibraryShelf({ entries, p, active, open, play, playing, controls
         </Pressable>
         <Button p={p} primary label={playing ? "Ⅱ" : "▶"} accessibilityLabel={playing ? "Pause narration" : "Continue listening"} disabled={disabled} action={play} />
       </View>
-      <View style={ui.row}><Text style={[ui.section, { color: p.ink, flex: 1 }]}>Documents</Text><Button p={p} label="Manage" action={controls} /></View>
+      </>}
     </View>}
-    ListEmptyComponent={<Text style={{ color: p.muted, padding: 16 }}>No matching documents.</Text>}
-    renderItem={({ item }) => <Pressable accessibilityRole="button" onPress={() => open(item.id)} style={ui.gridCard}>
-      <Cover key={item.id} id={item.id} format={item.format} title={item.title} p={p} />
-      <Text numberOfLines={2} style={{ color: p.ink, marginTop: 5, fontWeight: "600" }}>{item.title}</Text>
-      <Text style={{ color: p.muted, marginTop: 2 }}>{item.format}</Text>
-    </Pressable>} />;
+    ListEmptyComponent={!entries.length ? <View style={{ alignItems: "center", gap: 10, backgroundColor: p.card, margin: 6, padding: 24, borderRadius: 12 }}>
+      <Text style={[ui.section, { color: p.ink }]}>Your library is empty</Text>
+      <Text style={{ color: p.muted, textAlign: "center" }}>Import TXT, EPUB or PDF. Your files and generated audio stay on this device.</Text>
+      <Button p={p} primary label="Import a book" action={importFile} />
+    </View> : <Text style={{ color: p.muted, padding: 16 }}>No matching documents.</Text>}
+    renderItem={({ item }) => <View style={ui.gridCard}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Open ${item.title}`} onPress={() => open(item.id)}>
+        <Cover key={item.id} id={item.id} format={item.format} title={item.title} p={p} />
+      </Pressable>
+      <View style={ui.row}>
+        <Text numberOfLines={2} style={[ui.title, { color: p.ink, flex: 1 }]}>{item.title}</Text>
+        <Button p={p} label="⋯" accessibilityLabel={`Options for ${item.title}`} action={() => options(item)} />
+      </View>
+      <Text style={{ color: p.muted }}>{item.format}</Text>
+    </View>} />;
 }

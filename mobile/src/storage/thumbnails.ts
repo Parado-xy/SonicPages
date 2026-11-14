@@ -4,6 +4,7 @@ import { extractEpubCover } from "../imports/epub";
 import { originalFile } from "./originalFiles";
 
 export const readerMedia = NativeModules.SonicPagesReaderMedia as {
+  pdfContents(uri: string): Promise<{title: string; depth: number; page: number}[]>;
   pdfPage(uri: string, page: number): Promise<{uri: string; aspect: number}>;
   pdfHighlight(uri: string, page: number, text: string): Promise<{x: number; y: number; width: number; height: number}[]>;
   thumbnail(uri: string): Promise<string>;
