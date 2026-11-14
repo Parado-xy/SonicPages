@@ -17,7 +17,7 @@ export function DocumentOptions({ item, p, close, rename, remove, exportFile }: 
     <Button p={p} label="Delete" action={() => setMode("delete")} />
   </Sheet>;
   return <Modal transparent onRequestClose={close}>
-    <View style={{ flex: 1, justifyContent: "center", padding: 24, backgroundColor: "#0007" }}>
+    <View style={{ flex: 1, justifyContent: "center", padding: 24, backgroundColor: p.scrim }}>
       <View accessibilityViewIsModal style={{ gap: 12, padding: 18, borderRadius: 16, backgroundColor: p.bg }}>
         <Text accessibilityRole="header" style={[ui.title, { color: p.ink }]}>{mode === "rename" ? "Rename document" : `Delete “${item.title}”?`}</Text>
         {mode === "rename" ? <>

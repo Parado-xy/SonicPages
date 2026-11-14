@@ -66,6 +66,7 @@ class PdfTextModule(private val context: ReactApplicationContext) : ReactContext
         val result = Arguments.createMap()
         result.putArray("pages", pages)
         result.putString("title", document.documentInformation.title)
+        result.putString("author", document.documentInformation.author)
         promise.resolve(result)
       }
     } catch (error: InvalidPasswordException) {

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { File } from "expo-file-system";
 import { ScrollView, Text, TextInput, View } from "react-native";
 import { extractEpubContents } from "../imports/epub";
 import { originalFile } from "../storage/originalFiles";
 import { readerMedia } from "../storage/thumbnails";
+import { IconButton } from "./Controls";
 import { Button, ui, type Palette } from "./Design";
 
 export type ContentsEntry = { title: string; depth: number; page?: number; offset?: number };
@@ -40,12 +40,12 @@ export function Contents({ id, format, current, total, read, play, p }: {
       <Button p={p} label="Go" disabled={!valid} action={() => read({ title: "", depth: 0, page: index })} />
     </View>
   </>;
-  return <ScrollView style={{ maxHeight: 330 }}>
+  return <ScrollView>
     {entries.map((entry, i) => <View key={i} style={[ui.row, { marginLeft: Math.min(3, entry.depth) * 12, marginBottom: 4 }]}>
       <View style={{ flex: 1, alignItems: "stretch" }}>
         <Button p={p} label={entry.title} selected={active === entry} action={() => read(entry)} />
       </View>
-      <Button p={p} label="▶" accessibilityLabel={`Narrate from ${entry.title}`} action={() => play(entry)} />
+      <IconButton p={p} icon="play" label={`Narrate from ${entry.title}`} action={() => play(entry)} />
     </View>)}
   </ScrollView>;
 }

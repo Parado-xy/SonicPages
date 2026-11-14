@@ -1,47 +1,62 @@
-import { serif } from "../theme/tokens";
-import { useEffect, useRef } from "react";
-import { Pressable, ScrollView, Text, View, type LayoutChangeEvent } from "react-native";
+import { useEffect, useMemo, useRef } from "react";
+import { FlatList, Text, View } from "react-native";
+import { sentenceAt } from "./sentence";
 import type { SpeechChunk } from "../speech/types";
+import { serif } from "../theme/tokens";
 import type { Palette } from "./Design";
-import { styles } from "./styles";
 
-export function Reader({ chunks, index, highlightedIndex, onSelect, palette, fontSize }: {
-  palette: Palette;
-  fontSize: number;
+export function Reader({ content, chunks, index, highlightedIndex, onSelect, onTap, palette, fontSize }: {
+  content: string;
   chunks: SpeechChunk[];
   index: number;
   highlightedIndex: number | null;
   onSelect(index: number): void;
+  onTap(): void;
+  palette: Palette;
+  fontSize: number;
 }) {
-  const scroll = useRef<ScrollView>(null);
-  const positions = useRef<number[]>([]);
-  const scrollToPassage = (passage: number, animated: boolean) => {
-    const y = positions.current[passage];
-    if (y !== undefined) scroll.current?.scrollTo({ y: Math.max(0, y - 12), animated });
-  };
+  const list = useRef<FlatList>(null);
+  const paragraphs = useMemo(() => {
+    let cursor = 0;
+    return Array.from(content.matchAll(/\S[\s\S]*?(?=\n\s*\n|$)/g), match => {
+      const start = match.index;
+      const end = start + match[0].length;
+      while (chunks[cursor] && chunks[cursor].endChar <= start) cursor++;
+      const first = cursor;
+      while (chunks[cursor] && chunks[cursor].startChar < end) cursor++;
+      return { start, end, first, last: cursor };
+    });
+  }, [chunks, content]);
+
+  const selected = highlightedIndex ?? index;
+  const paragraph = paragraphs.findIndex(item => selected >= item.first && selected < item.last);
+  const sentence = highlightedIndex !== null && chunks[highlightedIndex]
+    ? sentenceAt(content, chunks[highlightedIndex]) : undefined;
 
   useEffect(() => {
-    scrollToPassage(highlightedIndex ?? index, true);
-  }, [highlightedIndex, index]);
+    if (paragraph >= 0) list.current?.scrollToIndex({ index: paragraph, animated: true, viewPosition: 0.28 });
+  }, [paragraph]);
 
-  const measure = (passage: number, event: LayoutChangeEvent) => {
-    const firstLayout = positions.current[passage] === undefined;
-    positions.current[passage] = event.nativeEvent.layout.y;
-    if (firstLayout && passage === index && passage > 0) scrollToPassage(passage, false);
-  };
-
-  return (
-    <ScrollView ref={scroll} contentContainerStyle={styles.reader}>
-      <View>
-        {chunks.map((chunk, passage) => (
-          <Pressable key={chunk.id} onPress={() => onSelect(passage)}
-            onLayout={event => measure(passage, event)} accessibilityRole="button"
-            accessibilityState={{ selected: passage === highlightedIndex }}
-            style={[styles.chunk, passage === highlightedIndex && { backgroundColor: palette.highlight, borderLeftWidth: 3, borderLeftColor: palette.accent }]}>
-            <Text style={[styles.prose, { color: palette.ink, fontFamily: serif, fontSize, lineHeight: fontSize * 1.52 }]}>{chunk.text.trim()}</Text>
-          </Pressable>
-        ))}
-      </View>
-    </ScrollView>
-  );
+  return <FlatList ref={list} data={paragraphs} keyExtractor={item => String(item.start)}
+    onScrollToIndexFailed={({ index: target, averageItemLength }) => {
+      list.current?.scrollToOffset({ offset: target * averageItemLength, animated: false });
+    }}
+    contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 22 }}
+    renderItem={({ item }) => {
+      const start = sentence && Math.max(item.start, sentence.start);
+      const end = sentence && Math.min(item.end, sentence.end);
+      const plain = start === undefined || end === undefined || start >= end;
+      return <View>
+        <Text onPress={onTap} onLongPress={() => { if (item.first < item.last) onSelect(item.first); }}
+          accessibilityActions={[{ name: "activate", label: "Toggle reader controls" }, ...(item.first < item.last ? [{ name: "listen", label: "Listen from this paragraph" }] : [])]}
+          onAccessibilityAction={({ nativeEvent }) => nativeEvent.actionName === "listen" ? onSelect(item.first) : onTap()}
+          style={{ color: palette.ink, fontFamily: serif, fontSize, lineHeight: fontSize * 1.54, marginBottom: 18 }}>
+          {plain ? content.slice(item.start, item.end) : <>
+            {content.slice(item.start, start)}
+            <Text style={{ backgroundColor: palette.highlight }}>{content.slice(start, end)}</Text>
+            {content.slice(end, item.end)}
+          </>}
+        </Text>
+      </View>;
+    }} />;
 }
