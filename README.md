@@ -1,10 +1,23 @@
 # SonicPages
 
-SonicPages is being rebuilt as a private, accessible workspace for reading and
-listening to documents. This branch establishes the typed application and design
-foundation for the product.
+SonicPages is a listening-first reader for books and documents you already own.
+The Android beta can read TXT, EPUB, and text-based PDFs aloud offline after
+voice setup, highlight the spoken sentence, and resume from your saved position.
+Your imported documents and generated audio stay on your device. You can export
+both from the library.
 
-## Current foundation
+## Try the Android beta
+
+[Download SonicPages for Android](https://drive.google.com/file/d/17CYwdzrkGp1FfsFAzunAX7aw5lBR3boC/view?usp=drivesdk).
+Extract the ZIP and follow `START-HERE.txt` to install the standalone APK.
+Open the app while online to download a Kokoro voice, or select an available
+offline Android voice. Then import a file from your device.
+
+For beta feedback, include your phone model, Android version, document format,
+and steps to reproduce the issue. See the [mobile README](mobile/README.md) for
+build commands and device checks.
+
+## Web application
 
 - Next.js App Router, React, and strict TypeScript
 - Tailwind CSS design tokens with light, dark, and system themes
@@ -31,9 +44,6 @@ foundation for the product.
 - Reusable button, badge, card, header, navigation, and empty-state components
 - ESLint, TypeScript, Vitest, production builds, dependency auditing, and CI
 - Baseline security and privacy headers
-
-The library and reader intentionally contain no fake documents. Document uploads and
-processing remains queued until the ingestion worker is introduced.
 
 ## Local development
 
