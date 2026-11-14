@@ -2,6 +2,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { InferenceSession, Tensor } from 'onnxruntime-react-native';
 import { Audio } from 'expo-av';
+import { inspectWaveform, assertPlayableWaveform } from '../../speech/waveformDiagnostics';
 import { VOICES, getVoiceData } from './voices';
 import { Platform } from 'react-native';
 import { MODELS } from './models';
@@ -484,6 +485,9 @@ class KokoroOnnx {
         nonFinite
       });
       
+      // Reject corrupt/silent/implausibly long output before handing it to Android playback.
+      assertPlayableWaveform(inspectWaveform(waveform, SAMPLE_RATE));
+
       // 6. Convert to audio buffer
       const audioUri = await this._floatArrayToAudioFile(waveform);
       
