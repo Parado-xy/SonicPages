@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
@@ -28,6 +28,7 @@ function ReaderScreen() {
   const [state, setState] = useState<NarrationState>({ ...initial, phase: "idle", highlightedIndex: null });
   const [ready, setReady] = useState(false);
   const [setup, setSetup] = useState<string>();
+  const [setupError, setSetupError] = useState<string>();
   const [importing, setImporting] = useState(false);
   const importInProgress = useRef(false);
   const setupInProgress = useRef(false);
@@ -48,20 +49,28 @@ function ReaderScreen() {
     };
   }, [document, chunks]);
 
-  const prepare = async () => {
+  const prepare = useCallback(async (offlineOnly = false) => {
     if (setupInProgress.current) return;
     setupInProgress.current = true;
+    setSetupError(undefined);
     setSetup("Checking offline speech files…");
     try {
-      await kokoroEngine.prepare(setSetup);
+      await kokoroEngine.prepare(setSetup, offlineOnly);
       setReady(true);
     } catch (error) {
-      Alert.alert("Speech setup failed", String(error));
+      console.warn("Voice setup failed", error);
+      setSetupError(offlineOnly
+        ? "Could not load the saved voice. Tap Retry setup."
+        : "Voice setup failed. Check your connection and available storage, then retry.");
     } finally {
       setupInProgress.current = false;
       setSetup(undefined);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (kokoroEngine.hasOfflineVoice()) void prepare(true);
+  }, [prepare]);
 
   const importText = async () => {
     if (importInProgress.current) return;
@@ -88,7 +97,7 @@ function ReaderScreen() {
     }
   };
 
-  const status = setup ?? (state.phase === "error" ? state.error : {
+  const status = setup ?? setupError ?? (state.phase === "error" ? state.error : {
     generating: "Preparing passage on this device…",
     playing: "Listening",
     paused: "Paused",
@@ -117,8 +126,8 @@ function ReaderScreen() {
         <Text accessibilityLiveRegion="polite" style={styles.playerTitle}>{status}</Text>
         {(setup || importing || state.phase === "generating") && <ActivityIndicator />}
         <View style={styles.controls}>
-          {!ready && <Pressable accessibilityRole="button" style={styles.import} onPress={prepare} disabled={!!setup}>
-            <Text style={styles.importText}>Prepare Kokoro</Text>
+          {!ready && <Pressable accessibilityRole="button" style={styles.import} onPress={() => void prepare()} disabled={!!setup}>
+            <Text style={styles.importText}>{setupError ? "Retry setup" : "Prepare Kokoro"}</Text>
           </Pressable>}
           <Pressable accessibilityRole="button" style={styles.import} onPress={() => controller.current?.toggle()}
             disabled={importing || !ready || state.phase === "generating"}>

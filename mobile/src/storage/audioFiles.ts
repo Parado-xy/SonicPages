@@ -10,15 +10,21 @@ function directory(name: string): Directory {
   return dir;
 }
 
+export function installedAsset(filename: string, bytes: number): File | undefined {
+  const file = new File(root, "speech-assets", filename);
+  return file.size === bytes ? file : undefined;
+}
+
 export async function installAsset(
   filename: string,
   url: string,
   bytes: number,
   onProgress?: (progress: number) => void,
 ): Promise<File> {
+  const installed = installedAsset(filename, bytes);
+  if (installed) return installed;
   const assets = directory("speech-assets");
   const file = new File(assets, filename);
-  if (file.size === bytes) return file;
   const temporary = new File(assets, filename + ".download");
   if (temporary.exists) temporary.delete();
   try {
