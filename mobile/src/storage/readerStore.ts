@@ -6,7 +6,7 @@ import type { ReadingPosition } from "../narration/controller";
 export type ReaderDocument = { id: string; title: string; content: string };
 export type SavedDocument = ReaderDocument & ReadingPosition;
 
-export type LibraryEntry = Pick<SavedDocument, "id" | "title" | "index">;
+export type LibraryEntry = Pick<SavedDocument, "id" | "title" | "index"> & { format: string };
 
 const documentProjection = `documents.id, COALESCE(document_titles.title, documents.title) AS title,
   content, passage AS "index", position_ms AS positionMs`;
@@ -19,6 +19,9 @@ function db() {
     const opened = openDatabaseSync("sonicpages.db");
     opened.execSync(`
       PRAGMA journal_mode = WAL;
+      CREATE TABLE IF NOT EXISTS reader_preferences (
+        key TEXT PRIMARY KEY, value TEXT NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS documents (
         id TEXT PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL,
         passage INTEGER NOT NULL DEFAULT 0, position_ms REAL NOT NULL DEFAULT 0
@@ -80,7 +83,9 @@ export function savePosition(id: string, position: ReadingPosition) {
 
 export function listDocuments(): LibraryEntry[] {
   return db().getAllSync<LibraryEntry>(`
-    SELECT documents.id, COALESCE(document_titles.title, documents.title) AS title, passage AS "index"
+    SELECT documents.id, COALESCE(document_titles.title, documents.title) AS title, passage AS "index",
+      CASE WHEN lower(documents.title) LIKE '%.pdf' THEN 'PDF'
+           WHEN lower(documents.title) LIKE '%.epub' THEN 'EPUB' ELSE 'TXT' END AS format
     FROM ${documentTables}
     ORDER BY title COLLATE NOCASE, documents.id
   `);
@@ -112,4 +117,12 @@ export function getExportDocument(id: string) {
     "SELECT title, content FROM documents WHERE id = ?", id);
   if (!document) throw new Error("This document is missing from your library.");
   return document;
+}
+
+export function preference(key: string) {
+  return db().getFirstSync<{ value: string }>("SELECT value FROM reader_preferences WHERE key = ?", key)?.value;
+}
+
+export function savePreference(key: string, value: string) {
+  db().runSync("INSERT OR REPLACE INTO reader_preferences (key, value) VALUES (?, ?)", key, value);
 }

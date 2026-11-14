@@ -87,3 +87,27 @@ export function extractEpubText(bytes: Uint8Array): string {
   if (!chapters.length) throw new Error("No readable text was found. This EPUB may be image-only or protected.");
   return chapters.join("\n\n");
 }
+
+export function extractEpubCover(bytes: Uint8Array) {
+  const packageFiles = unzipSync(bytes, { filter: entry =>
+    /^(META-INF\/container\.xml)$|\.opf$/i.test(entry.name) && entry.originalSize <= 1024 * 1024 });
+  const container = packageFiles["META-INF/container.xml"];
+  if (!container) return undefined;
+  const xml = (data: Uint8Array) => parseDocument(strFromU8(data), { xmlMode: true });
+  const path = elements(xml(container).children, "rootfile")[0]?.attribs["full-path"];
+  if (!path) return undefined;
+  const packagePath = entryPath("", path);
+  const packageData = packageFiles[packagePath];
+  if (!packageData) return undefined;
+  const book = xml(packageData);
+  const items = elements(book.children, "item");
+  const legacy = elements(book.children, "meta").find(meta => meta.attribs.name === "cover")?.attribs.content;
+  const item = items.find(candidate => candidate.attribs.properties?.split(/\s+/).includes("cover-image"))
+    ?? (legacy ? items.find(candidate => candidate.attribs.id === legacy) : undefined);
+  if (!item?.attribs.href) return undefined;
+  const extension = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" } as Record<string, string>)[item.attribs["media-type"]];
+  if (!extension) return undefined;
+  const imagePath = entryPath(packagePath, item.attribs.href);
+  const data = unzipSync(bytes, { filter: entry => entry.name === imagePath && entry.originalSize <= 4 * 1024 * 1024 })[imagePath];
+  return data?.length ? { data, extension } : undefined;
+}

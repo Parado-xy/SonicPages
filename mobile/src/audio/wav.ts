@@ -47,3 +47,45 @@ export function wavDurationMs(header: Uint8Array, fileSize: number, sampleRate: 
       dataLength % 2 !== 0 || dataLength + HEADER_BYTES !== fileSize) return null;
   return dataLength * 500 / sampleRate;
 }
+
+/** Normalize Android TTS engine output to the same mono PCM format as Kokoro. */
+export function decodeDeviceWav(bytes: Uint8Array, targetRate: number): Float32Array {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (bytes.length < 44 || view.getUint32(0) !== 0x52494646 || view.getUint32(8) !== 0x57415645) {
+    throw new Error("The device voice returned unreadable audio.");
+  }
+  let rate = 0, channels = 0, bits = 0, codec = 0, start = 0, length = 0;
+  for (let offset = 12; offset + 8 <= bytes.length;) {
+    const type = view.getUint32(offset);
+    const size = view.getUint32(offset + 4, true);
+    const data = offset + 8;
+    if (data + size > bytes.length) break;
+    if (type === 0x666d7420 && size >= 16) {
+      codec = view.getUint16(data, true);
+      channels = view.getUint16(data + 2, true);
+      rate = view.getUint32(data + 4, true);
+      bits = view.getUint16(data + 14, true);
+    }
+    if (type === 0x64617461) { start = data; length = size; }
+    offset = data + size + (size % 2);
+  }
+  if (codec !== 1 || ![8, 16].includes(bits) || ![1, 2].includes(channels) || rate < 8000 || rate > 96000 || !length) {
+    throw new Error("The device voice returned an unsupported audio format.");
+  }
+  const stride = channels * bits / 8;
+  const frames = Math.floor(length / stride);
+  if (frames / rate > 30 || !frames) throw new Error("The device voice returned an invalid passage duration.");
+  const out = new Float32Array(Math.round(frames * targetRate / rate));
+  const frame = (index: number) => {
+    const at = start + index * stride;
+    const sample = (offset: number) => bits === 16 ? view.getInt16(offset, true) / 32768 : (view.getUint8(offset) - 128) / 128;
+    return channels === 1 ? sample(at) : (sample(at) + sample(at + bits / 8)) / 2;
+  };
+  for (let i = 0; i < out.length; i++) {
+    const index = i * rate / targetRate;
+    const left = Math.min(Math.floor(index), frames - 1);
+    const right = Math.min(left + 1, frames - 1);
+    out[i] = frame(left) + (frame(right) - frame(left)) * (index - left);
+  }
+  return out;
+}
