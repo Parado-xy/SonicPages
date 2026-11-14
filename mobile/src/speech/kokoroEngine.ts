@@ -1,9 +1,17 @@
 import type { InferenceSession } from "onnxruntime-react-native";
-import { cachedAudio, installAsset, installedAsset, saveAudio } from "../storage/audioFiles";
+import { cachedAudio, deleteGeneratedAudio, installAsset, installedAsset, saveAudio } from "../storage/audioFiles";
 import { openKokoro, runKokoro, SAMPLE_RATE } from "../vendor/kokoro/kokoroOnnx";
 import { MODEL, VOICE } from "../vendor/kokoro/models";
 import { kokoroTokens } from "./phonemize";
 import type { LocalSpeechEngine, SpeechChunk } from "./types";
+
+export function cachedPassageAudio(chunk: SpeechChunk) {
+  return cachedAudio(audioKey(chunk), SAMPLE_RATE);
+}
+
+function audioKey(chunk: SpeechChunk) {
+  return [MODEL.id, VOICE.id, "cmu1", chunk.documentId, chunk.startChar, chunk.endChar].join("_");
+}
 
 class KokoroEngine implements LocalSpeechEngine {
   private session?: InferenceSession;
@@ -33,14 +41,21 @@ class KokoroEngine implements LocalSpeechEngine {
     this.session = await openKokoro(model.uri);
   }
 
+  clearGeneratedAudio() {
+    const next = this.queue.then(deleteGeneratedAudio);
+    this.queue = next.catch(() => undefined);
+    return next;
+  }
+
   synthesize(chunk: SpeechChunk, signal: AbortSignal) {
     const next = this.queue.then(async () => {
       if (signal.aborted) throw new Error("Narration stopped");
-      const key = [MODEL.id, VOICE.id, "cmu1", chunk.documentId, chunk.startChar, chunk.endChar].join("_");
+      const key = audioKey(chunk);
       const cached = cachedAudio(key, SAMPLE_RATE);
       if (cached) return { ...cached, chunkId: chunk.id, modelId: MODEL.id, words: [] };
       if (!this.session || !this.voice) throw new Error("Prepare Kokoro before listening");
       const waveform = await runKokoro(this.session, kokoroTokens(chunk.text), this.voice);
+      if (signal.aborted) throw new Error("Narration stopped");
       const saved = saveAudio(key, waveform, SAMPLE_RATE);
       return { ...saved, chunkId: chunk.id, modelId: MODEL.id, words: [] };
     });
