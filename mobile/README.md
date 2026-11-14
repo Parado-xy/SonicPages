@@ -93,3 +93,9 @@ On the standalone APK, import a fresh TXT with at least 30 minutes of narration.
 ### Offline document imports
 
 Use **Import** to select TXT, EPUB, or a text-based PDF. EPUB follows the book's spine and extracts readable XHTML without loading external resources. Android PDF import extracts selectable text locally, in page order. Complex columns and tables may read out of order. Image-only PDFs require OCR before import, and password-protected PDFs are rejected. The library stores extracted text and reading position per document. A new Android APK is required for PDF import.
+
+### Android export and storage
+
+In **Library**, open a document's **Options** to export the original file or a WAV containing generated passages in reading order. Imports from older builds can export their readable text as TXT. Reimport the original to make its source bytes available while retaining the matching document's position. Android opens a system picker so you can choose where to save each export.
+
+The Library shows the space used by the offline voice and generated audio. **Clear generated audio** stops playback and removes the audio cache. Reopen or resume a document to regenerate narration offline. Original files, reader text, downloaded speech assets, and saved positions remain available.

@@ -11,6 +11,8 @@ import { Library } from "./src/reader/Library";
 import { Reader } from "./src/reader/Reader";
 import { styles } from "./src/reader/styles";
 import { kokoroEngine } from "./src/speech/kokoroEngine";
+import { speechStorageUsage } from "./src/storage/audioFiles";
+import { exportDocument, exportNarration } from "./src/storage/exportFiles";
 import { listDocuments, loadDocument, openDocument, renameDocument, saveDocument, savePosition, type LibraryEntry } from "./src/storage/readerStore";
 
 const DEMO = {
@@ -32,6 +34,9 @@ function ReaderScreen() {
   const [setup, setSetup] = useState<string>();
   const [setupError, setSetupError] = useState<string>();
   const [library, setLibrary] = useState<LibraryEntry[] | null>(null);
+  const [storage, setStorage] = useState({ voiceBytes: 0, audioBytes: 0 });
+  const [libraryBusy, setLibraryBusy] = useState(false);
+  const libraryOperation = useRef(false);
   const [importing, setImporting] = useState(false);
   const importInProgress = useRef(false);
   const setupInProgress = useRef(false);
@@ -91,7 +96,7 @@ function ReaderScreen() {
       const file = new File(asset.uri);
       try {
         const content = await readDocument(file, asset.name, asset.mimeType);
-        setDocument(saveDocument(asset.name, content));
+        setDocument(saveDocument(asset.name, content, file));
       } finally {
         if (file.exists) file.delete();
       }
@@ -106,6 +111,7 @@ function ReaderScreen() {
   const showLibrary = () => {
     try {
       controller.current?.checkpoint();
+      setStorage(speechStorageUsage());
       setLibrary(listDocuments());
     } catch (error) {
       Alert.alert("Could not open the library", String(error));
@@ -137,6 +143,32 @@ function ReaderScreen() {
       Alert.alert("Could not rename document", String(error));
       return false;
     }
+  };
+
+  const runLibraryOperation = async (operation: () => Promise<unknown>) => {
+    if (libraryOperation.current) return;
+    libraryOperation.current = true;
+    setLibraryBusy(true);
+    try {
+      await operation();
+      setStorage(speechStorageUsage());
+    } catch (error) {
+      Alert.alert("Library action failed", error instanceof Error ? error.message : String(error));
+    } finally {
+      libraryOperation.current = false;
+      setLibraryBusy(false);
+    }
+  };
+
+  const clearAudio = () => {
+    Alert.alert("Clear generated audio?", "Your documents, voice download, and reading positions are kept.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Clear audio", style: "destructive", onPress: () => void runLibraryOperation(async () => {
+        controller.current?.stop();
+        await kokoroEngine.clearGeneratedAudio();
+        setLibrary(listDocuments());
+      }) },
+    ]);
   };
 
   const status = setup ?? setupError ?? (state.phase === "error" ? state.error : {
@@ -186,7 +218,8 @@ function ReaderScreen() {
         <Text style={styles.progress}>Passage {Math.min(state.index + 1, chunks.length)} / {chunks.length}</Text>
       </View>
       {library && <Library entries={library} activeId={document.id} close={() => setLibrary(null)}
-        open={switchDocument} rename={updateTitle} />}
+        open={switchDocument} rename={updateTitle} storage={storage} busy={libraryBusy} clear={clearAudio}
+        exportFile={(id, kind) => void runLibraryOperation(() => kind === "document" ? exportDocument(id) : exportNarration(id))} />}
     </SafeAreaView>
   );
 }

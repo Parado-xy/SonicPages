@@ -69,3 +69,16 @@ export function saveAudio(key: string, waveform: Float32Array, sampleRate: numbe
   }
   return { localAudioUri: file.uri, durationMs: waveform.length * 1000 / sampleRate };
 }
+
+export function speechStorageUsage() {
+  const size = (name: string) => {
+    const dir = new Directory(root, name);
+    return dir.exists ? dir.list().reduce((total, entry) => total + (entry instanceof File ? entry.size : 0), 0) : 0;
+  };
+  return { voiceBytes: size("speech-assets"), audioBytes: size("audio") };
+}
+
+export function deleteGeneratedAudio() {
+  const audio = new Directory(root, "audio");
+  if (audio.exists) audio.delete();
+}
