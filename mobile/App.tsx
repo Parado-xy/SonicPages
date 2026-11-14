@@ -3,13 +3,15 @@ import { ActivityIndicator, Alert, AppState, Pressable, Text, View } from "react
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
+import { documentTypes, readDocument } from "./src/imports/readDocument";
 import { ExpoPlayer } from "./src/audio/expoPlayer";
 import { NarrationController, type NarrationState } from "./src/narration/controller";
 import { splitIntoChunks } from "./src/reader/chunks";
+import { Library } from "./src/reader/Library";
 import { Reader } from "./src/reader/Reader";
 import { styles } from "./src/reader/styles";
 import { kokoroEngine } from "./src/speech/kokoroEngine";
-import { loadDocument, saveDocument, savePosition } from "./src/storage/readerStore";
+import { listDocuments, loadDocument, openDocument, renameDocument, saveDocument, savePosition, type LibraryEntry } from "./src/storage/readerStore";
 
 const DEMO = {
   id: "demo-1",
@@ -29,6 +31,7 @@ function ReaderScreen() {
   const [ready, setReady] = useState(false);
   const [setup, setSetup] = useState<string>();
   const [setupError, setSetupError] = useState<string>();
+  const [library, setLibrary] = useState<LibraryEntry[] | null>(null);
   const [importing, setImporting] = useState(false);
   const importInProgress = useRef(false);
   const setupInProgress = useRef(false);
@@ -76,19 +79,18 @@ function ReaderScreen() {
     if (kokoroEngine.hasOfflineVoice()) void prepare(true);
   }, [prepare]);
 
-  const importText = async () => {
+  const importDocument = async () => {
     if (importInProgress.current) return;
     importInProgress.current = true;
     setImporting(true);
     controller.current?.stop();
     try {
-      const result = await DocumentPicker.getDocumentAsync({ type: "text/plain", copyToCacheDirectory: true });
+      const result = await DocumentPicker.getDocumentAsync({ type: documentTypes, copyToCacheDirectory: true });
       if (result.canceled) return;
       const asset = result.assets[0];
       const file = new File(asset.uri);
       try {
-        const content = await file.text();
-        if (!content.trim()) throw new Error("This document is empty");
+        const content = await readDocument(file, asset.name, asset.mimeType);
         setDocument(saveDocument(asset.name, content));
       } finally {
         if (file.exists) file.delete();
@@ -98,6 +100,42 @@ function ReaderScreen() {
     } finally {
       importInProgress.current = false;
       setImporting(false);
+    }
+  };
+
+  const showLibrary = () => {
+    try {
+      controller.current?.checkpoint();
+      setLibrary(listDocuments());
+    } catch (error) {
+      Alert.alert("Could not open the library", String(error));
+    }
+  };
+
+  const switchDocument = (id: string) => {
+    try {
+      if (id !== document.id) {
+        controller.current?.stop();
+        setDocument(openDocument(id));
+      }
+      setLibrary(null);
+    } catch (error) {
+      Alert.alert("Could not open document", String(error));
+    }
+  };
+
+  const updateTitle = (id: string, title: string) => {
+    try {
+      renameDocument(id, title);
+      if (id === document.id) {
+        controller.current?.stop();
+        setDocument(openDocument(id));
+      }
+      setLibrary(listDocuments());
+      return true;
+    } catch (error) {
+      Alert.alert("Could not rename document", String(error));
+      return false;
     }
   };
 
@@ -118,8 +156,11 @@ function ReaderScreen() {
       </View>
       <View style={styles.top}>
         <Text style={styles.title}>{document.title}</Text>
-        <Pressable accessibilityRole="button" onPress={importText} disabled={importing} style={styles.import}>
-          <Text style={styles.importText}>Import TXT</Text>
+        <Pressable accessibilityRole="button" onPress={showLibrary} disabled={importing} style={styles.import}>
+          <Text style={styles.importText}>Library</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={importDocument} disabled={importing} style={styles.import}>
+          <Text style={styles.importText}>Import</Text>
         </Pressable>
       </View>
       <Reader key={document.id} chunks={chunks} index={state.index} highlightedIndex={state.highlightedIndex}
@@ -144,6 +185,8 @@ function ReaderScreen() {
         </View>
         <Text style={styles.progress}>Passage {Math.min(state.index + 1, chunks.length)} / {chunks.length}</Text>
       </View>
+      {library && <Library entries={library} activeId={document.id} close={() => setLibrary(null)}
+        open={switchDocument} rename={updateTitle} />}
     </SafeAreaView>
   );
 }
