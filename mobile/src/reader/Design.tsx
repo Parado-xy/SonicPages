@@ -3,17 +3,16 @@ import { FlatList, Image, ImageBackground, Modal, Pressable, StyleSheet, Text, T
 import { thumbnail } from "../storage/thumbnails";
 import type { LibraryEntry } from "../storage/readerStore";
 
-export const light = { bg: "#F7F1E5", card: "#FBF6EB", ink: "#182327", muted: "#545658", line: "#C9C1B5", accent: "#5145CD", fill: "#B9C4FF", highlight: "#E5E1FF" };
-export const dark = { bg: "#171B27", card: "#232838", ink: "#F6EFE1", muted: "#BAC0CF", line: "#53596C", accent: "#B9C4FF", fill: "#B9C4FF", highlight: "#353959" };
-export type Palette = typeof light;
+import { light, serif, type Palette } from "../theme/tokens";
+export type { Palette } from "../theme/tokens";
 
 export const ui = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: 8 },
   header: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
-  heading: { fontFamily: "serif", fontSize: 27, flex: 1 },
-  title: { fontFamily: "serif", fontSize: 20 },
-  section: { fontFamily: "serif", fontSize: 23 },
-  button: { minHeight: 44, minWidth: 44, paddingHorizontal: 10, justifyContent: "center", alignItems: "center", borderRadius: 24 },
+  heading: { fontFamily: serif, fontSize: 27, flex: 1 },
+  title: { fontFamily: serif, fontSize: 20 },
+  section: { fontFamily: serif, fontSize: 23 },
+  button: { minHeight: 48, minWidth: 48, paddingHorizontal: 10, justifyContent: "center", alignItems: "center", borderRadius: 24 },
   gridCard: { flex: 1, minWidth: 0, margin: 6 },
   cover: { width: "100%", aspectRatio: 0.76, borderRadius: 8, overflow: "hidden", borderWidth: StyleSheet.hairlineWidth, justifyContent: "center", alignItems: "center", padding: 12 },
   dock: { borderTopWidth: StyleSheet.hairlineWidth, padding: 12, gap: 6 },

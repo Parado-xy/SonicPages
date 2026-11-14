@@ -1,3 +1,4 @@
+import { serif } from "../theme/tokens";
 import { useEffect, useRef } from "react";
 import { Pressable, ScrollView, Text, View, type LayoutChangeEvent } from "react-native";
 import type { SpeechChunk } from "../speech/types";
@@ -37,7 +38,7 @@ export function Reader({ chunks, index, highlightedIndex, onSelect, palette, fon
             onLayout={event => measure(passage, event)} accessibilityRole="button"
             accessibilityState={{ selected: passage === highlightedIndex }}
             style={[styles.chunk, passage === highlightedIndex && { backgroundColor: palette.highlight, borderLeftWidth: 3, borderLeftColor: palette.accent }]}>
-            <Text style={[styles.prose, { color: palette.ink, fontFamily: "serif", fontSize, lineHeight: fontSize * 1.52 }]}>{chunk.text.trim()}</Text>
+            <Text style={[styles.prose, { color: palette.ink, fontFamily: serif, fontSize, lineHeight: fontSize * 1.52 }]}>{chunk.text.trim()}</Text>
           </Pressable>
         ))}
       </View>
