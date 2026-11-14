@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Alert, AppState, Pressable, Text, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
@@ -43,7 +43,11 @@ function ReaderScreen() {
         catch (error) { console.warn("Could not save SonicPages progress", error); }
       });
     controller.current = session;
+    const lifecycle = AppState.addEventListener("change", next => {
+      if (next !== "active") session.checkpoint();
+    });
     return () => {
+      lifecycle.remove();
       controller.current = null;
       session.stop();
     };
@@ -99,6 +103,7 @@ function ReaderScreen() {
 
   const status = setup ?? setupError ?? (state.phase === "error" ? state.error : {
     generating: "Preparing passage on this device…",
+    buffering: "Buffering audio…",
     playing: "Listening",
     paused: "Paused",
     finished: "End of document",
@@ -130,7 +135,7 @@ function ReaderScreen() {
             <Text style={styles.importText}>{setupError ? "Retry setup" : "Prepare Kokoro"}</Text>
           </Pressable>}
           <Pressable accessibilityRole="button" style={styles.import} onPress={() => controller.current?.toggle()}
-            disabled={importing || !ready || state.phase === "generating"}>
+            disabled={importing || !ready || (state.phase === "generating" || state.phase === "buffering")}>
             <Text style={styles.importText}>{state.phase === "playing" ? "Pause" : "Play"}</Text>
           </Pressable>
           <Pressable accessibilityRole="button" style={styles.import} onPress={() => controller.current?.stop()}>

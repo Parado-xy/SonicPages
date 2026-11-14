@@ -54,12 +54,16 @@ export class ExpoPlayer implements AudioPlayer {
           finish();
           return;
         }
+        if (started && value.isBuffering) {
+          onStatus({ playing: false, buffering: true, positionMs: value.currentTime * 1000 });
+          return;
+        }
         if (!value.isLoaded || value.didJustFinish || value.duration <= 0) return;
         if (!started) {
           started = true;
           const start = async () => {
-            if (positionMs > 0 && positionMs < value.duration * 1000 - 250) {
-              await player.seekTo(positionMs / 1000);
+            if (positionMs > 0) {
+              await player.seekTo(Math.min(positionMs / 1000, Math.max(0, value.duration - 0.05)));
             }
             if (settled) return;
             if (!this.hasMediaSession && AppState.currentState !== "background") {
@@ -111,6 +115,11 @@ export class ExpoPlayer implements AudioPlayer {
         player.remove();
       }
     });
+  }
+
+  positionMs() {
+    const player = this.current;
+    return player ? player.currentStatus.currentTime * 1000 : undefined;
   }
 
   pause() { this.current?.pause(); }

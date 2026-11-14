@@ -85,3 +85,7 @@ npx eas-cli@latest build --platform android --profile preview
 Keep Metro stopped. Install the APK using the same signing key as any existing installation if you want to keep its app data. On a clean test installation, start voice setup on Wi-Fi and check that progress is visible. Interrupt the connection, restore it, then retry setup. A partial download is retried from the beginning. A completed model download is reused if the voice download fails.
 
 Save a new TXT to Downloads. Once setup finishes, force-stop SonicPages, turn on airplane mode with Wi-Fi off, and launch from the app icon. The app should load the saved voice automatically. Import the new TXT and listen through multiple passages. Record whether launch, setup recovery, fresh synthesis, and playback pass on the device.
+
+### Long listening and resume acceptance test
+
+On the standalone APK, import a fresh TXT with at least 30 minutes of narration. At normal speed, listen across passage boundaries with the app visible, in the background, and with the screen locked. Check for gaps and confirm that the highlight follows the audible passage when the reader is visible. Exercise lock-screen pause and play. During separate runs, receive a call and disconnect a Bluetooth headset. Check whether playback pauses and whether playback can continue from that point. While listening, force-stop the app, turn off Wi-Fi and mobile data, and relaunch. Tap Play and compare the restored passage and elapsed position with the point you heard before stopping.

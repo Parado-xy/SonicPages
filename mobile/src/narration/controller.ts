@@ -3,13 +3,14 @@ import type { GeneratedSpeech, LocalSpeechEngine, SpeechChunk } from "../speech/
 
 export type ReadingPosition = { index: number; positionMs: number };
 export type NarrationState = ReadingPosition & {
-  phase: "idle" | "generating" | "playing" | "paused" | "finished" | "error";
+  phase: "idle" | "generating" | "buffering" | "playing" | "paused" | "finished" | "error";
   highlightedIndex: number | null;
   error?: string;
 };
 
 export class NarrationController {
   private session?: AbortController;
+  private clipDurationMs?: number;
   private state: NarrationState;
 
   constructor(
@@ -29,12 +30,21 @@ export class NarrationController {
     this.publish(this.state);
   }
 
+  checkpoint() {
+    if (this.state.highlightedIndex === null || this.clipDurationMs === undefined) return;
+    const nativePosition = this.audio.positionMs?.();
+    const positionMs = Number.isFinite(nativePosition)
+      ? Math.max(0, Math.min(nativePosition!, this.clipDurationMs))
+      : this.state.positionMs;
+    this.update({ positionMs });
+    this.persist({ index: this.state.index, positionMs });
+  }
+
   stop() {
+    this.checkpoint();
     this.session?.abort();
     this.session = undefined;
-    if (this.state.highlightedIndex !== null) {
-      this.persist({ index: this.state.index, positionMs: this.state.positionMs });
-    }
+    this.clipDurationMs = undefined;
     this.update({ phase: "idle", highlightedIndex: null });
   }
 
@@ -42,7 +52,8 @@ export class NarrationController {
     switch (this.state.phase) {
       case "playing": this.audio.pause(); break;
       case "paused": this.audio.resume(); break;
-      case "generating": break;
+      case "generating":
+      case "buffering": break;
       case "finished": void this.listen(0); break;
       default: void this.listen(this.state.index, this.state.positionMs);
     }
@@ -63,21 +74,32 @@ export class NarrationController {
 
     try {
       this.persist({ index, positionMs });
-      let pending = prepare(this.chunks[index]);
+      const pending = new Map<number, Promise<GeneratedSpeech>>();
+      let scheduled = index;
+      const fill = (through: number) => {
+        while (scheduled <= through && scheduled < this.chunks.length) {
+          pending.set(scheduled, prepare(this.chunks[scheduled]));
+          scheduled++;
+        }
+      };
+      fill(index);
       for (let current = index; current < this.chunks.length && !signal.aborted; current++) {
         const offset = current === index ? positionMs : 0;
         this.update({ index: current, positionMs: offset, phase: "generating", highlightedIndex: null });
-        const clip = await pending;
+        this.clipDurationMs = undefined;
+        const clip = await pending.get(current)!;
+        pending.delete(current);
         if (signal.aborted) return;
         const next = this.chunks[current + 1];
-        if (next) pending = prepare(next);
+        this.clipDurationMs = clip.durationMs;
+        fill(current + 3);
         let lastSaved = -Infinity;
         let hasPlayed = false;
         await this.audio.play(clip.localAudioUri, this.title, offset, signal, status => {
           if (signal.aborted) return;
-          hasPlayed ||= status.playing || status.positionMs > 0;
+          hasPlayed ||= status.playing;
           if (!hasPlayed) return;
-          const phase = status.playing ? "playing" : "paused";
+          const phase = status.buffering ? "buffering" : status.playing ? "playing" : "paused";
           const elapsed = Math.min(clip.durationMs, Math.max(0, status.positionMs));
           const phaseChanged = this.state.phase !== phase;
           this.update({ index: current, phase, positionMs: elapsed, highlightedIndex: current });
@@ -87,6 +109,7 @@ export class NarrationController {
           }
         });
         if (signal.aborted) return;
+        this.clipDurationMs = undefined;
         this.persist(next ? { index: current + 1, positionMs: 0 } : { index: 0, positionMs: 0 });
       }
       if (!signal.aborted) {
