@@ -3,15 +3,16 @@ import { AppState } from "react-native";
 import type { AudioPlayer, PlaybackStatus } from "./player";
 
 export class ExpoPlayer implements AudioPlayer {
+  private rate = 1;
   private current?: NativePlayer;
   private owner?: AbortSignal;
   private hasMediaSession = false;
 
   async play(uri: string, title: string, positionMs: number, signal: AbortSignal,
-    onStatus: (status: PlaybackStatus) => void) {
+    onStatus: (status: PlaybackStatus) => void, mediaSession = true) {
     await setAudioModeAsync({
       playsInSilentMode: true,
-      shouldPlayInBackground: true,
+      shouldPlayInBackground: mediaSession,
       shouldRouteThroughEarpiece: false,
       interruptionMode: "doNotMix",
     });
@@ -66,7 +67,7 @@ export class ExpoPlayer implements AudioPlayer {
               await player.seekTo(Math.min(positionMs / 1000, Math.max(0, value.duration - 0.05)));
             }
             if (settled) return;
-            if (!this.hasMediaSession && AppState.currentState !== "background") {
+            if (mediaSession && !this.hasMediaSession && AppState.currentState !== "background") {
               try {
                 player.setActiveForLockScreen(true, { title, artist: "SonicPages" });
                 this.hasMediaSession = true;
@@ -75,6 +76,8 @@ export class ExpoPlayer implements AudioPlayer {
               }
             }
             requestedPlay = true;
+            player.shouldCorrectPitch = true;
+            player.setPlaybackRate(this.rate);
             player.play();
           };
           void start().catch(error => finish(error));
@@ -115,6 +118,15 @@ export class ExpoPlayer implements AudioPlayer {
         player.remove();
       }
     });
+  }
+
+  setRate(rate: number) {
+    this.rate = rate;
+    this.current?.setPlaybackRate(rate);
+  }
+
+  async seek(positionMs: number) {
+    await this.current?.seekTo(positionMs / 1000);
   }
 
   positionMs() {

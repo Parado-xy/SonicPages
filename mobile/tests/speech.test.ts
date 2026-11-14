@@ -1,6 +1,6 @@
 import { deepEqual, equal, ok, throws } from "node:assert/strict";
 import { test } from "node:test";
-import { encodeWav, wavDurationMs, wavHeader } from "../src/audio/wav";
+import { decodeDeviceWav, encodeWav, wavDurationMs, wavHeader } from "../src/audio/wav";
 import { splitIntoChunks } from "../src/reader/chunks";
 import { kokoroTokens, phonemize } from "../src/speech/phonemize";
 import { assertPlayableWaveform, inspectWaveform } from "../src/speech/waveformDiagnostics";
@@ -51,4 +51,12 @@ test("a WAV export header describes the combined PCM payload", () => {
   equal(wavDurationMs(header, dataLength + 44, 24_000), 5 * 1000 / 24_000);
   throws(() => wavHeader(3, 24_000), /invalid/);
   throws(() => wavHeader(0x1_0000_0000, 24_000), /large/);
+});
+
+test("device voice PCM is normalized to the export sample rate", () => {
+  const pcm = decodeDeviceWav(encodeWav(Float32Array.of(0, 0.5, 0, -0.5), 16_000), 24_000);
+  equal(pcm.length, 6);
+  equal(pcm[0], 0);
+  equal(pcm[3], 0);
+  throws(() => decodeDeviceWav(new Uint8Array(4), 24_000), /unreadable/);
 });

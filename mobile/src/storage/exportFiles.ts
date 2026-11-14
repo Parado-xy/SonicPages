@@ -34,11 +34,11 @@ export async function exportDocument(id: string) {
   });
 }
 
-export async function exportNarration(id: string) {
+export async function exportNarration(id: string, narrator?: string) {
   const { title, content } = getExportDocument(id);
   const passages = splitIntoChunks(id, content);
   const clips = passages.flatMap(chunk => {
-    const clip = cachedPassageAudio(chunk);
+    const clip = cachedPassageAudio(chunk, narrator);
     return clip ? [new File(clip.localAudioUri)] : [];
   });
   if (!clips.length) throw new Error("Play this document to generate narration before exporting.");

@@ -2,9 +2,11 @@ import { useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { LibraryEntry } from "../storage/readerStore";
+import { Paper, type Palette } from "./Design";
 import { styles } from "./styles";
 
-export function Library({ entries, activeId, close, open, rename, storage, busy, clear, exportFile }: {
+export function Library({ entries, activeId, close, open, rename, storage, busy, clear, exportFile, palette }: {
+  palette: Palette;
   entries: LibraryEntry[];
   activeId: string;
   close(): void;
@@ -21,9 +23,10 @@ export function Library({ entries, activeId, close, open, rename, storage, busy,
 
   return (
     <Modal animationType="slide" onRequestClose={dismiss}>
-      <SafeAreaView style={styles.root}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: palette.bg }}>
+        <Paper palette={palette}>
         <View style={styles.top}>
-          <Text accessibilityRole="header" style={styles.brand}>{editing ? "Rename document" : "Library"}</Text>
+          <Text accessibilityRole="header" style={[styles.brand, { color: palette.ink }]}>{editing ? "Rename document" : "Library"}</Text>
           <Pressable accessibilityRole="button" onPress={dismiss} disabled={busy} style={styles.import}>
             <Text style={styles.importText}>{editing ? "Cancel" : "Done"}</Text>
           </Pressable>
@@ -31,7 +34,7 @@ export function Library({ entries, activeId, close, open, rename, storage, busy,
         {editing ? (
           <View style={local.form}>
             <TextInput accessibilityLabel="Document title" value={title} onChangeText={setTitle}
-              maxLength={200} autoFocus style={local.input} />
+              maxLength={200} autoFocus style={[local.input, { color: palette.ink, backgroundColor: palette.card }]} />
             <Pressable accessibilityRole="button" disabled={!title.trim()} style={styles.import}
               onPress={() => { if (rename(editing.id, title)) setEditing(undefined); }}>
               <Text style={styles.importText}>Save title</Text>
@@ -40,9 +43,9 @@ export function Library({ entries, activeId, close, open, rename, storage, busy,
         ) : (
           <FlatList ListHeaderComponent={
             <View style={local.storage}>
-              <Text accessibilityRole="header" style={styles.title}>Storage</Text>
-              <Text style={styles.subtitle}>Offline voice {formatSize(storage.voiceBytes)}</Text>
-              <Text style={styles.subtitle}>Generated audio {formatSize(storage.audioBytes)}</Text>
+              <Text accessibilityRole="header" style={[styles.title, { color: palette.ink }]}>Storage</Text>
+              <Text style={[styles.subtitle, { color: palette.muted }]}>Offline voice {formatSize(storage.voiceBytes)}</Text>
+              <Text style={[styles.subtitle, { color: palette.muted }]}>Generated audio {formatSize(storage.audioBytes)}</Text>
               {busy && <ActivityIndicator />}
               <Pressable accessibilityRole="button" onPress={clear} disabled={busy || !storage.audioBytes}
                 style={[styles.import, (busy || !storage.audioBytes) && local.disabled]}>
@@ -54,8 +57,8 @@ export function Library({ entries, activeId, close, open, rename, storage, busy,
               <View style={local.row}>
                 <Pressable accessibilityRole="button" accessibilityState={{ selected: item.id === activeId }}
                   disabled={busy} onPress={() => open(item.id)} style={local.document}>
-                  <Text style={styles.title}>{item.title}</Text>
-                  <Text style={styles.subtitle}>Passage {item.index + 1}</Text>
+                  <Text style={[styles.title, { color: palette.ink }]}>{item.title}</Text>
+                  <Text style={[styles.subtitle, { color: palette.muted }]}>Passage {item.index + 1}</Text>
                 </Pressable>
                 <Pressable accessibilityRole="button" accessibilityLabel={`Options for ${item.title}`}
                   disabled={busy} style={styles.import} onPress={() => Alert.alert(item.title, undefined, [
@@ -68,6 +71,7 @@ export function Library({ entries, activeId, close, open, rename, storage, busy,
               </View>
             )} />
         )}
+      </Paper>
       </SafeAreaView>
     </Modal>
   );

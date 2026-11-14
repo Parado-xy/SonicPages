@@ -1,7 +1,7 @@
 import { equal, throws } from "node:assert/strict";
 import { test } from "node:test";
 import { strToU8, zipSync } from "fflate";
-import { extractEpubText } from "../src/imports/epub";
+import { extractEpubCover, extractEpubText } from "../src/imports/epub";
 
 const container = '<container><rootfiles><rootfile full-path="OPS/book.opf"/></rootfiles></container>';
 const manifest = '<manifest><item id="one" href="chapters/one%20a.xhtml" media-type="application/xhtml+xml"/><item id="two" href="../two.xhtml" media-type="application/xhtml+xml"/></manifest>';
@@ -22,4 +22,20 @@ test("reports missing chapters and image-only EPUBs", () => {
   const spine = '<itemref idref="one"/>';
   throws(() => extractEpubText(archive(spine, {})), /missing a chapter/);
   throws(() => extractEpubText(archive(spine, { "OPS/chapters/one a.xhtml": '<body><img src="a.png"/></body>' })), /No readable text/);
+});
+
+test("EPUB cover metadata supports EPUB 3 and EPUB 2", () => {
+  for (const metadata of [
+    '<manifest><item id="cover" properties="cover-image" href="art%20one.png" media-type="image/png"/></manifest>',
+    '<metadata><meta name="cover" content="cover"/></metadata><manifest><item id="cover" href="art%20one.png" media-type="image/png"/></manifest>',
+  ]) {
+    const book = zipSync({
+      "META-INF/container.xml": strToU8(container),
+      "OPS/book.opf": strToU8(`<package>${metadata}</package>`),
+      "OPS/art one.png": Uint8Array.of(137, 80, 78, 71),
+    });
+    const cover = extractEpubCover(book);
+    equal(cover?.extension, "png");
+    equal(cover?.data.length, 4);
+  }
 });
