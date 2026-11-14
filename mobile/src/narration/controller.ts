@@ -22,6 +22,7 @@ export class NarrationController {
     position: ReadingPosition,
     private readonly publish: (state: NarrationState) => void,
     private readonly persist: (position: ReadingPosition) => void,
+    private readonly artwork?: () => Promise<string | undefined>,
   ) {
     this.state = { ...position, phase: "idle", highlightedIndex: null };
   }
@@ -111,6 +112,7 @@ export class NarrationController {
       return result;
     };
 
+    const artwork = this.artwork?.().catch(() => undefined);
     try {
       this.persist({ index, positionMs });
       const pending = new Map<number, Promise<GeneratedSpeech>>();
@@ -146,7 +148,7 @@ export class NarrationController {
             this.persist({ index: current, positionMs: elapsed });
             lastSaved = elapsed;
           }
-        });
+        }, true, artwork);
         if (signal.aborted) return;
         this.clipDurationMs = undefined;
         this.persist(next ? { index: current + 1, positionMs: 0 } : { index: 0, positionMs: 0 });

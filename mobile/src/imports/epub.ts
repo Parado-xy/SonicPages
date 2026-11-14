@@ -94,7 +94,8 @@ export function extractEpubDocument(bytes: Uint8Array) {
   if (!chapters.length) throw new Error("No readable text was found. This EPUB may be image-only or protected.");
   const title = elements(book.children, "title")[0]?.children.map(node => node.type === "text" ? node.data : "").join("");
   const content = chapters.join("\n\n");
-  return { content, title, book, manifest, spine, packagePath, read, offsets };
+  const author = elements(book.children, "creator")[0]?.children.map(node => node.type === "text" ? node.data : "").join("").trim();
+  return { content, title, author, book, manifest, spine, packagePath, read, offsets };
 }
 
 export function extractEpubCover(bytes: Uint8Array) {

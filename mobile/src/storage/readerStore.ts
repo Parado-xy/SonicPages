@@ -5,13 +5,14 @@ import { openDatabaseSync } from "expo-sqlite";
 import type { ReadingPosition } from "../narration/controller";
 
 export type ReaderDocument = { id: string; title: string; content: string };
-export type SavedDocument = ReaderDocument & ReadingPosition & { pageStarts?: number[]; sourceName?: string };
+export type SavedDocument = ReaderDocument & ReadingPosition & { pageStarts?: number[]; sourceName?: string; author?: string };
 
-export type LibraryEntry = Pick<SavedDocument, "id" | "title" | "index"> & { format: string; sourceName?: string };
+export type LibraryEntry = Pick<SavedDocument, "id" | "title" | "index"> & { format: string; sourceName?: string; progress?: number };
 
 type DocumentRow = SavedDocument & { sourceName: string; automaticTitle: string | null; overrideTitle: string | null; pageJson: string | null };
 function hydrate(row: DocumentRow): SavedDocument {
   return { ...row, title: row.overrideTitle ?? displayTitle(row.sourceName, row.automaticTitle),
+    author: preference("author:" + row.id),
     pageStarts: row.pageJson ? JSON.parse(row.pageJson) : undefined };
 }
 
@@ -52,8 +53,6 @@ function db() {
 
 export function loadDocument(demo: ReaderDocument): SavedDocument {
   const store = db();
-  if (preference("libraryInitialized") !== "1") store.runSync(`INSERT OR IGNORE INTO documents (id, title, content)
-    SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM documents)`, demo.id, demo.title, demo.content);
   const row = store.getFirstSync<DocumentRow>(`
     SELECT ${documentProjection} FROM ${documentTables}
     ORDER BY CASE WHEN documents.id = (SELECT document_id FROM active_document WHERE slot = 1) THEN 0 ELSE 1 END, documents.id LIMIT 1
@@ -61,7 +60,7 @@ export function loadDocument(demo: ReaderDocument): SavedDocument {
   return row ? hydrate(row) : { ...demo, index: 0, positionMs: 0 };
 }
 
-export function saveDocument(title: string, content: string, source: File, metadata?: { title?: string | null; pageStarts?: number[] }): SavedDocument {
+export function saveDocument(title: string, content: string, source: File, metadata?: { title?: string | null; author?: string | null; pageStarts?: number[] }): SavedDocument {
   const store = db();
   const matches = store.getAllSync<DocumentRow>(`
     SELECT ${documentProjection} FROM ${documentTables}
@@ -79,14 +78,14 @@ export function saveDocument(title: string, content: string, source: File, metad
     store.withTransactionSync(() => {
       if (!existing) store.runSync("INSERT INTO documents (id, title, content) VALUES (?, ?, ?)",
         saved.id, title, content);
-      if (metadata) saveMetadata(saved.id, metadata.title, metadata.pageStarts);
+      if (metadata) saveMetadata(saved.id, metadata.title, metadata.pageStarts, metadata.author);
       setActiveDocument(saved.id);
     });
   } catch (error) {
     if (!existing) originalFile(saved.id).delete();
     throw error;
   }
-  return { ...saved, sourceName: title, title: existing?.overrideTitle ?? displayTitle(title, metadata?.title), pageStarts: metadata?.pageStarts ?? saved.pageStarts };
+  return { ...saved, author: metadata?.author?.trim() || (existing && preference("author:" + saved.id)), sourceName: title, title: existing?.overrideTitle ?? displayTitle(title, metadata?.title), pageStarts: metadata?.pageStarts ?? saved.pageStarts };
 }
 
 export function savePosition(id: string, position: ReadingPosition) {
@@ -99,6 +98,7 @@ export function listDocuments(): LibraryEntry[] {
   return db().getAllSync<LibraryEntry & Pick<DocumentRow, "sourceName" | "automaticTitle" | "overrideTitle">>(`
     SELECT documents.id, COALESCE(document_titles.title, documents.title) AS title, passage AS "index", documents.title AS sourceName, document_metadata.title AS automaticTitle,
       document_titles.title AS overrideTitle,
+      CAST((SELECT value FROM reader_preferences WHERE key = 'percent:' || documents.id) AS INTEGER) AS progress,
       CASE WHEN lower(documents.title) LIKE '%.pdf' THEN 'PDF'
            WHEN lower(documents.title) LIKE '%.epub' THEN 'EPUB' ELSE 'TXT' END AS format
     FROM ${documentTables}
@@ -144,7 +144,8 @@ export function savePreference(key: string, value: string) {
 }
 
 
-export function saveMetadata(id: string, title?: string | null, pages?: number[]) {
+export function saveMetadata(id: string, title?: string | null, pages?: number[], author?: string | null) {
+  if (author?.trim()) savePreference("author:" + id, author.trim());
   db().runSync(`INSERT INTO document_metadata (document_id, title, pages) VALUES (?, ?, ?)
     ON CONFLICT(document_id) DO UPDATE SET title = COALESCE(excluded.title, document_metadata.title),
     pages = COALESCE(excluded.pages, document_metadata.pages)`,
@@ -158,5 +159,6 @@ export function deleteDocument(id: string) {
     store.runSync("DELETE FROM document_titles WHERE document_id = ?", id);
     store.runSync("DELETE FROM document_metadata WHERE document_id = ?", id);
     store.runSync("DELETE FROM documents WHERE id = ?", id);
+    store.runSync("DELETE FROM reader_preferences WHERE key IN (?, ?, ?, ?)", "author:" + id, "bookmark:" + id, "pdfPage:" + id, "percent:" + id);
   });
 }
