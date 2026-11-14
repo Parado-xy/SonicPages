@@ -28,17 +28,23 @@ async function createThumbnail(id: string, format: string) {
   const source = originalFile(id);
   if (!source.exists) return undefined;
   folder.create({ idempotent: true, intermediates: true });
+  if (format === "PDF") {
+    const cover = new File(folder, id + ".pdf-v2.png");
+    if (cover.size > 0) return cover.uri;
+    if (!readerMedia) return undefined;
+    const temporary = new File(await readerMedia.thumbnail(source.uri));
+    const legacy = new File(folder, id + ".jpg");
+    try {
+      temporary.move(cover);
+      if (legacy.exists) legacy.delete();
+    } finally {
+      if (temporary.uri !== cover.uri && temporary.exists) temporary.delete();
+    }
+    return cover.uri;
+  }
   for (const extension of ["jpg", "png", "webp"]) {
     const cached = new File(folder, id + "." + extension);
     if (cached.size > 0) return cached.uri;
-  }
-  if (format === "PDF") {
-    if (!readerMedia) return undefined;
-    const temporary = new File(await readerMedia.thumbnail(source.uri));
-    const cover = new File(folder, id + ".jpg");
-    try { temporary.move(cover); }
-    finally { if (temporary.uri !== cover.uri && temporary.exists) temporary.delete(); }
-    return cover.uri;
   }
   const image = extractEpubCover(await source.bytes());
   if (!image) return undefined;
@@ -50,7 +56,7 @@ async function createThumbnail(id: string, format: string) {
 
 export async function deleteThumbnail(id: string) {
   await pending.get(id);
-  for (const extension of ["jpg", "png", "webp"]) {
+  for (const extension of ["jpg", "png", "webp", "pdf-v2.png"]) {
     const cover = new File(folder, id + "." + extension);
     if (cover.exists) cover.delete();
   }
