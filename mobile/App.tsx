@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, AppState, Pressable, Text, View } from "react
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
+import { documentTypes, readDocument } from "./src/imports/readDocument";
 import { ExpoPlayer } from "./src/audio/expoPlayer";
 import { NarrationController, type NarrationState } from "./src/narration/controller";
 import { splitIntoChunks } from "./src/reader/chunks";
@@ -78,19 +79,18 @@ function ReaderScreen() {
     if (kokoroEngine.hasOfflineVoice()) void prepare(true);
   }, [prepare]);
 
-  const importText = async () => {
+  const importDocument = async () => {
     if (importInProgress.current) return;
     importInProgress.current = true;
     setImporting(true);
     controller.current?.stop();
     try {
-      const result = await DocumentPicker.getDocumentAsync({ type: "text/plain", copyToCacheDirectory: true });
+      const result = await DocumentPicker.getDocumentAsync({ type: documentTypes, copyToCacheDirectory: true });
       if (result.canceled) return;
       const asset = result.assets[0];
       const file = new File(asset.uri);
       try {
-        const content = await file.text();
-        if (!content.trim()) throw new Error("This document is empty");
+        const content = await readDocument(file, asset.name, asset.mimeType);
         setDocument(saveDocument(asset.name, content));
       } finally {
         if (file.exists) file.delete();
@@ -159,8 +159,8 @@ function ReaderScreen() {
         <Pressable accessibilityRole="button" onPress={showLibrary} disabled={importing} style={styles.import}>
           <Text style={styles.importText}>Library</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={importText} disabled={importing} style={styles.import}>
-          <Text style={styles.importText}>Import TXT</Text>
+        <Pressable accessibilityRole="button" onPress={importDocument} disabled={importing} style={styles.import}>
+          <Text style={styles.importText}>Import</Text>
         </Pressable>
       </View>
       <Reader key={document.id} chunks={chunks} index={state.index} highlightedIndex={state.highlightedIndex}

@@ -89,3 +89,7 @@ Save a new TXT to Downloads. Once setup finishes, force-stop SonicPages, turn on
 ### Long listening and resume acceptance test
 
 On the standalone APK, import a fresh TXT with at least 30 minutes of narration. At normal speed, listen across passage boundaries with the app visible, in the background, and with the screen locked. Check for gaps and confirm that the highlight follows the audible passage when the reader is visible. Exercise lock-screen pause and play. During separate runs, receive a call and disconnect a Bluetooth headset. Check whether playback pauses and whether playback can continue from that point. While listening, force-stop the app, turn off Wi-Fi and mobile data, and relaunch. Tap Play and compare the restored passage and elapsed position with the point you heard before stopping.
+
+### Offline document imports
+
+Use **Import** to select TXT, EPUB, or a text-based PDF. EPUB follows the book's spine and extracts readable XHTML without loading external resources. Android PDF import extracts selectable text locally, in page order. Complex columns and tables may read out of order. Image-only PDFs require OCR before import, and password-protected PDFs are rejected. The library stores extracted text and reading position per document. A new Android APK is required for PDF import.
