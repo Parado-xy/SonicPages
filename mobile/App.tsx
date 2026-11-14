@@ -22,6 +22,7 @@ export default function App() {
   const soundRef = useRef<Audio.Sound | null>(null);
   const generationRef = useRef(0);
   const inferenceInProgressRef = useRef(false);
+  const lastPlaybackLogSecondRef = useRef(-1);
   const chunks = useMemo(() => splitIntoChunks("current-document", content), [content]);
   const chunksRef = useRef(chunks);
   chunksRef.current = chunks;
@@ -76,6 +77,11 @@ export default function App() {
       console.log('SonicPages audio loaded status:', JSON.stringify(loadedStatus));
       sound.setOnPlaybackStatusUpdate(status => {
         if (!status.isLoaded) { console.error('SonicPages audio playback status error:', status.error); return; }
+        const playbackSecond = Math.floor(status.positionMillis / 1000);
+        if (playbackSecond !== lastPlaybackLogSecondRef.current && playbackSecond % 5 === 0) {
+          lastPlaybackLogSecondRef.current = playbackSecond;
+          console.log('SonicPages playback progress:', { seconds: playbackSecond, buffering: status.isBuffering, playing: status.isPlaying });
+        }
         if (status.didJustFinish) console.log('SonicPages audio playback finished');
         if (!status.isLoaded) return;
         if (status.didJustFinish && generation === generationRef.current) {
