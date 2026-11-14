@@ -144,7 +144,7 @@ class KokoroOnnx {
       
       // Create inference session with explicit options
       const options = {
-        executionProviders: ['cpuexecutionprovider'],
+        executionProviders: ['cpu'],
         graphOptimizationLevel: 'all',
         enableCpuMemArena: true,
         enableMemPattern: true,
@@ -442,18 +442,10 @@ class KokoroOnnx {
       const offset = numTokens * STYLE_DIM;
       const styleData = voiceData.slice(offset, offset + STYLE_DIM);
       
-      // 3. Prepare input tensors - using regular arrays instead of Int64Array
+      // ONNX int64 inputs require BigInt64Array, not Int32Array or number[].
       const inputs = {};
-      
-      try {
-        // Try with Int32Array first (more compatible)
-        inputs['input_ids'] = new Tensor('int64', new Int32Array(tokens), [1, tokens.length]);
-      } catch (error) {
-        console.warn('Failed to create int64 tensor with Int32Array, trying with regular array:', error);
-        // Fallback to regular array
-        inputs['input_ids'] = new Tensor('int64', tokens, [1, tokens.length]);
-      }
-      
+      inputs['input_ids'] = new Tensor('int64', BigInt64Array.from(tokens, token => BigInt(token)), [1, tokens.length]);
+
       inputs['style'] = new Tensor('float32', new Float32Array(styleData), [1, STYLE_DIM]);
       inputs['speed'] = new Tensor('float32', new Float32Array([speed]), [1]);
       
@@ -463,8 +455,10 @@ class KokoroOnnx {
         speed
       });
       
-      // 4. Run inference
+      // 4. Run inference. Measure latency to distinguish slow inference from a crash.
+      const inferenceStartedAt = Date.now();
       const outputs = await this.session.run(inputs);
+      console.log('Kokoro inference completed in', Date.now() - inferenceStartedAt, 'ms');
       
       if (!outputs || !outputs['waveform'] || !outputs['waveform'].data) {
         throw new Error('Invalid output from model inference');
