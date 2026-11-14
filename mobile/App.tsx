@@ -3,7 +3,8 @@ import { ActivityIndicator, Alert, Pressable, SafeAreaView, ScrollView, StyleShe
 import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
 import { Audio } from "expo-av";
-import kokoro from "./src/vendor/kokoro/kokoroOnnx";
+// Temporarily disabled to Isolate native ONNX startup failure
+// import kokoro from "./src/vendor/kokoro/kokoroOnnx";
 import { downloadModel, isModelDownloaded } from "./src/vendor/kokoro/models";
 import { splitIntoChunks } from "./src/reader/chunks";
 
@@ -48,7 +49,8 @@ export default function App() {
         if (!downloaded) throw new Error("Model download failed");
       }
       setMessage("Loading Kokoro on this device…");
-      if (!(await kokoro.loadModel(MODEL))) throw new Error("ONNX model could not be loaded");
+      throw new Error("Kokoro temporarily disabled for startup debugging")
+      // if (!(await kokoro.loadModel(MODEL))) throw new Error("ONNX model could not be loaded");
       setReady(true);
       setMessage("Kokoro ready · fully on-device");
     } catch (error) { setMessage("Model error"); Alert.alert("Speech setup failed", String(error)); }
