@@ -6,10 +6,11 @@ import { File } from "expo-file-system";
 import { ExpoPlayer } from "./src/audio/expoPlayer";
 import { NarrationController, type NarrationState } from "./src/narration/controller";
 import { splitIntoChunks } from "./src/reader/chunks";
+import { Library } from "./src/reader/Library";
 import { Reader } from "./src/reader/Reader";
 import { styles } from "./src/reader/styles";
 import { kokoroEngine } from "./src/speech/kokoroEngine";
-import { loadDocument, saveDocument, savePosition } from "./src/storage/readerStore";
+import { listDocuments, loadDocument, openDocument, renameDocument, saveDocument, savePosition, type LibraryEntry } from "./src/storage/readerStore";
 
 const DEMO = {
   id: "demo-1",
@@ -29,6 +30,7 @@ function ReaderScreen() {
   const [ready, setReady] = useState(false);
   const [setup, setSetup] = useState<string>();
   const [setupError, setSetupError] = useState<string>();
+  const [library, setLibrary] = useState<LibraryEntry[] | null>(null);
   const [importing, setImporting] = useState(false);
   const importInProgress = useRef(false);
   const setupInProgress = useRef(false);
@@ -101,6 +103,42 @@ function ReaderScreen() {
     }
   };
 
+  const showLibrary = () => {
+    try {
+      controller.current?.checkpoint();
+      setLibrary(listDocuments());
+    } catch (error) {
+      Alert.alert("Could not open the library", String(error));
+    }
+  };
+
+  const switchDocument = (id: string) => {
+    try {
+      if (id !== document.id) {
+        controller.current?.stop();
+        setDocument(openDocument(id));
+      }
+      setLibrary(null);
+    } catch (error) {
+      Alert.alert("Could not open document", String(error));
+    }
+  };
+
+  const updateTitle = (id: string, title: string) => {
+    try {
+      renameDocument(id, title);
+      if (id === document.id) {
+        controller.current?.stop();
+        setDocument(openDocument(id));
+      }
+      setLibrary(listDocuments());
+      return true;
+    } catch (error) {
+      Alert.alert("Could not rename document", String(error));
+      return false;
+    }
+  };
+
   const status = setup ?? setupError ?? (state.phase === "error" ? state.error : {
     generating: "Preparing passage on this device…",
     buffering: "Buffering audio…",
@@ -118,6 +156,9 @@ function ReaderScreen() {
       </View>
       <View style={styles.top}>
         <Text style={styles.title}>{document.title}</Text>
+        <Pressable accessibilityRole="button" onPress={showLibrary} disabled={importing} style={styles.import}>
+          <Text style={styles.importText}>Library</Text>
+        </Pressable>
         <Pressable accessibilityRole="button" onPress={importText} disabled={importing} style={styles.import}>
           <Text style={styles.importText}>Import TXT</Text>
         </Pressable>
@@ -144,6 +185,8 @@ function ReaderScreen() {
         </View>
         <Text style={styles.progress}>Passage {Math.min(state.index + 1, chunks.length)} / {chunks.length}</Text>
       </View>
+      {library && <Library entries={library} activeId={document.id} close={() => setLibrary(null)}
+        open={switchDocument} rename={updateTitle} />}
     </SafeAreaView>
   );
 }
