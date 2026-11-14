@@ -9,6 +9,7 @@ export interface AudioPlayer {
     onStatus: (status: PlaybackStatus) => void,
   ): Promise<void>;
   positionMs?(): number | undefined;
+  seek?(positionMs: number): Promise<void>;
   pause(): void;
   resume(): void;
 }

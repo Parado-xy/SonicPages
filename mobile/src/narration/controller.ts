@@ -4,6 +4,7 @@ import type { GeneratedSpeech, LocalSpeechEngine, SpeechChunk } from "../speech/
 export type ReadingPosition = { index: number; positionMs: number };
 export type NarrationState = ReadingPosition & {
   phase: "idle" | "generating" | "buffering" | "playing" | "paused" | "finished" | "error";
+  durationMs?: number;
   highlightedIndex: number | null;
   error?: string;
 };
@@ -45,7 +46,7 @@ export class NarrationController {
     this.session?.abort();
     this.session = undefined;
     this.clipDurationMs = undefined;
-    this.update({ phase: "idle", highlightedIndex: null });
+    this.update({ phase: "idle", highlightedIndex: null, durationMs: undefined });
   }
 
   toggle() {
@@ -57,6 +58,40 @@ export class NarrationController {
       case "finished": void this.listen(0); break;
       default: void this.listen(this.state.index, this.state.positionMs);
     }
+  }
+
+  async seek(positionMs: number) {
+    if (!this.clipDurationMs || this.state.highlightedIndex === null || !this.audio.seek) return;
+    const session = this.session;
+    const target = Math.max(0, Math.min(positionMs, this.clipDurationMs - 1));
+    await this.audio.seek(target);
+    if (session !== this.session || session?.signal.aborted) return;
+    this.update({ positionMs: target });
+    this.persist({ index: this.state.index, positionMs: target });
+  }
+
+  async skip(deltaMs: number, durationAt: (index: number) => number | undefined) {
+    if (this.state.highlightedIndex === null || !this.clipDurationMs) return;
+    let index = this.state.index;
+    let position = (this.audio.positionMs?.() ?? this.state.positionMs) + deltaMs;
+    let duration = this.clipDurationMs;
+    while (position >= duration && index + 1 < this.chunks.length) {
+      position -= duration;
+      const next = durationAt(++index);
+      if (!next) { position = 0; break; }
+      duration = next;
+    }
+    while (position < 0 && index > 0) {
+      const previous = durationAt(--index);
+      if (!previous) { position = 0; break; }
+      position += previous;
+    }
+    if (index === this.state.index) await this.seek(position);
+    else if (this.state.phase === "paused") {
+      this.stop();
+      this.update({ index, positionMs: Math.max(0, position) });
+      this.persist({ index, positionMs: this.state.positionMs });
+    } else await this.listen(index, Math.max(0, position));
   }
 
   async listen(index: number, positionMs = 0) {
@@ -85,7 +120,7 @@ export class NarrationController {
       fill(index);
       for (let current = index; current < this.chunks.length && !signal.aborted; current++) {
         const offset = current === index ? positionMs : 0;
-        this.update({ index: current, positionMs: offset, phase: "generating", highlightedIndex: null });
+        this.update({ index: current, positionMs: offset, phase: "generating", highlightedIndex: null, durationMs: undefined });
         this.clipDurationMs = undefined;
         const clip = await pending.get(current)!;
         pending.delete(current);
@@ -102,7 +137,7 @@ export class NarrationController {
           const phase = status.buffering ? "buffering" : status.playing ? "playing" : "paused";
           const elapsed = Math.min(clip.durationMs, Math.max(0, status.positionMs));
           const phaseChanged = this.state.phase !== phase;
-          this.update({ index: current, phase, positionMs: elapsed, highlightedIndex: current });
+          this.update({ index: current, phase, positionMs: elapsed, durationMs: clip.durationMs, highlightedIndex: current });
           if (phaseChanged || Math.abs(elapsed - lastSaved) >= 1000) {
             this.persist({ index: current, positionMs: elapsed });
             lastSaved = elapsed;
@@ -113,7 +148,7 @@ export class NarrationController {
         this.persist(next ? { index: current + 1, positionMs: 0 } : { index: 0, positionMs: 0 });
       }
       if (!signal.aborted) {
-        this.update({ phase: "finished", highlightedIndex: null, positionMs: 0 });
+        this.update({ phase: "finished", highlightedIndex: null, positionMs: 0, durationMs: undefined });
         session.abort();
       }
     } catch (error) {

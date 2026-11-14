@@ -15,6 +15,7 @@ export type SpeechWord = {
 export type SpeechChunk = {
   id: string;
   documentId: string;
+  pageIndex?: number;
   text: string;
   startChar: number;
   endChar: number;

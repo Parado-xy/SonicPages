@@ -1,6 +1,7 @@
 package com.anonymous.sonicpagesmobile
 
 import android.net.Uri
+import com.facebook.react.bridge.Arguments
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule
 import com.facebook.react.bridge.Promise
@@ -11,6 +12,7 @@ import com.facebook.react.uimanager.ViewManager
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.io.MemoryUsageSetting
 import com.tom_roush.pdfbox.pdmodel.PDDocument
+import com.tom_roush.pdfbox.pdmodel.PDPage
 import com.tom_roush.pdfbox.pdmodel.encryption.InvalidPasswordException
 import com.tom_roush.pdfbox.text.PDFTextStripper
 import java.io.File
@@ -19,7 +21,7 @@ import java.io.Writer
 
 class PdfTextPackage : ReactPackage {
   override fun createNativeModules(context: ReactApplicationContext): List<NativeModule> =
-    listOf(PdfTextModule(context), FileExportModule(context))
+    listOf(PdfTextModule(context), FileExportModule(context), ReaderMediaModule(context))
 
   override fun createViewManagers(context: ReactApplicationContext): List<ViewManager<*, *>> =
     emptyList()
@@ -33,7 +35,7 @@ class PdfTextModule(private val context: ReactApplicationContext) : ReactContext
     try {
       val path = Uri.parse(uri).path ?: throw IOException("Missing PDF path")
       val file = File(path).canonicalFile
-      if (!file.toPath().startsWith(context.cacheDir.canonicalFile.toPath()) || !file.isFile) {
+      if (!file.isFile || listOf(context.cacheDir, context.filesDir).none { file.toPath().startsWith(it.canonicalFile.toPath()) }) {
         throw IOException("The selected PDF could not be opened")
       }
       if (file.length() > 50L * 1024 * 1024) throw IOException("This PDF exceeds the 50 MB import limit")
@@ -47,11 +49,24 @@ class PdfTextModule(private val context: ReactApplicationContext) : ReactContext
         }
         if (document.numberOfPages > 2000) throw IOException("This PDF exceeds the 2,000 page import limit")
         val output = BoundedTextWriter()
-        val stripper = PDFTextStripper()
+        var lastPage = 0
+        val stripper = object : PDFTextStripper() {
+          override fun startPage(page: PDPage) {
+            repeat(currentPageNo - lastPage - 1) { output.write("\u000c") }
+            lastPage = currentPageNo
+            super.startPage(page)
+          }
+        }
         stripper.sortByPosition = true
-        stripper.setPageEnd("\n\n")
+        stripper.setPageEnd("\u000c")
         stripper.writeText(document, output)
-        promise.resolve(output.toString())
+        repeat(document.numberOfPages - lastPage) { output.write("\u000c") }
+        val pages = Arguments.createArray()
+        output.toString().split('\u000c').dropLast(1).forEach { pages.pushString(it) }
+        val result = Arguments.createMap()
+        result.putArray("pages", pages)
+        result.putString("title", document.documentInformation.title)
+        promise.resolve(result)
       }
     } catch (error: InvalidPasswordException) {
       promise.reject("PDF_PROTECTED", "This PDF requires a password.", error)

@@ -14,3 +14,9 @@ export const VOICE = {
   url: BASE + "/voices/af_heart.bin",
   bytes: 522240,
 };
+
+export const NARRATORS = [
+  { ...VOICE, label: "Heart", description: "American English" },
+  { ...VOICE, id: "am_michael", filename: "am_michael.bin", url: BASE + "/voices/am_michael.bin", label: "Michael", description: "American English" },
+  { ...VOICE, id: "bf_emma", filename: "bf_emma.bin", url: BASE + "/voices/bf_emma.bin", label: "Emma", description: "British voice · English pronunciation" },
+] as const;
