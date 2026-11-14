@@ -25,6 +25,7 @@
       }
     },
     "android": {
+      "icon": "./assets/sonicpages-icon.png",
       "permissions": [
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
