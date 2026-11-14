@@ -9,7 +9,7 @@ export class ExpoPlayer implements AudioPlayer {
   private hasMediaSession = false;
 
   async play(uri: string, title: string, positionMs: number, signal: AbortSignal,
-    onStatus: (status: PlaybackStatus) => void, mediaSession = true) {
+    onStatus: (status: PlaybackStatus) => void, mediaSession = true, artwork?: Promise<string | undefined>) {
     await setAudioModeAsync({
       playsInSilentMode: true,
       shouldPlayInBackground: mediaSession,
@@ -69,7 +69,13 @@ export class ExpoPlayer implements AudioPlayer {
             if (settled) return;
             if (mediaSession && !this.hasMediaSession && AppState.currentState !== "background") {
               try {
-                player.setActiveForLockScreen(true, { title, artist: "SonicPages" });
+                const metadata = { title, artist: "SonicPages" };
+                player.setActiveForLockScreen(true, metadata);
+                void artwork?.then(artworkUrl => {
+                  if (artworkUrl && this.owner === signal && !signal.aborted) {
+                    player.updateLockScreenMetadata({ ...metadata, artworkUrl });
+                  }
+                }).catch(error => console.warn("Could not display book cover on media controls", error));
                 this.hasMediaSession = true;
               } catch (error) {
                 console.warn("Could not enable lock-screen playback controls", error);

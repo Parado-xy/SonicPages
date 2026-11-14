@@ -24,7 +24,7 @@ import { NarrationController, type NarrationState } from "./src/narration/contro
 import { documentChunks } from "./src/reader/pdfPages";
 import { PdfReader } from "./src/reader/PdfReader";
 import { Button, Cover, Paper, Sheet, ui } from "./src/reader/Design";
-import { deleteThumbnail, readerMedia } from "./src/storage/thumbnails";
+import { deleteThumbnail, readerMedia, thumbnail } from "./src/storage/thumbnails";
 import { NARRATORS } from "./src/vendor/kokoro/models";
 import { sentenceAt } from "./src/reader/sentence";
 import { Reader } from "./src/reader/Reader";
@@ -78,7 +78,10 @@ function ReaderScreen() {
     });
     return () => subscription.remove();
   }, [contentsOpen, readerOpen]);
-  const [sheet, setSheet] = useState<"speed" | "voice" | "appearance" | "storage" | "menu" | "textSize" | "listen" | "progress">();
+  type SheetName = "speed" | "voice" | "appearance" | "storage" | "menu" | "textSize" | "listen" | "progress";
+  const currentSheet = useRef<SheetName | undefined>(undefined);
+  const [sheet, updateSheet] = useState<SheetName>();
+  const setSheet = (next?: SheetName) => { currentSheet.current = next; updateSheet(next); };
   const [fontSize, setFontSize] = useState(() => Number(preference("fontSize")) || 21);
   const [rate, setRate] = useState(() => Number(preference("rate")) || 1);
   const [voice, setVoice] = useState(() => {
@@ -135,7 +138,7 @@ function ReaderScreen() {
           }
         }
         catch (error) { console.warn("Could not save SonicPages progress", error); }
-      });
+      }, () => thumbnail(document.id, document.pageStarts?.length ? "PDF" : document.sourceName?.toLowerCase().endsWith(".epub") ? "EPUB" : "TXT"));
     controller.current = session;
     const lifecycle = AppState.addEventListener("change", next => {
       if (next !== "active") session.checkpoint();
@@ -354,6 +357,7 @@ function ReaderScreen() {
     }
   };
   const closeSheet = () => { preview.current?.abort(); setPreviewing(undefined); setSheet(undefined); };
+  const dismissSheet = (name: SheetName) => () => { if (currentSheet.current === name) closeSheet(); };
   const openVoice = () => {
     setSheet("voice");
     void readerMedia?.deviceVoice().then(id => setDevice(id ? "device:" + id : undefined)).catch(() => setDevice(undefined));
@@ -401,8 +405,14 @@ function ReaderScreen() {
   const narratorLabel = NARRATORS.find(item => item.id === voice)?.label ?? "Device voice";
   const playing = state.phase === "playing";
   const pending = !!setup || importing || state.phase === "generating" || state.phase === "buffering";
-  const elapsed = Math.floor(state.positionMs / 1000);
-  const passage = totalPages ? `Page ${pdfPage + 1} of ${totalPages}` : `Passage ${Math.min(state.index + 1, chunks.length)} of ${chunks.length}`;
+  const waitingForAudio = state.phase === "generating" || state.phase === "buffering";
+  const [showBuffering, setShowBuffering] = useState(false);
+  useEffect(() => {
+    if (!waitingForAudio) { setShowBuffering(false); return; }
+    const timer = setTimeout(() => setShowBuffering(true), 550);
+    return () => clearTimeout(timer);
+  }, [waitingForAudio]);
+  const passage = totalPages ? `Page ${pdfPage + 1} of ${totalPages}` : `Passage ${Math.min((navigateTo ?? state.index) + 1, chunks.length)} of ${chunks.length}`;
   const hasTimeline = !!state.durationMs && state.highlightedIndex !== null;
   const playable = chunks.length > 0 && entries.length > 0;
   const controlsDisabled = pending || !playable;
@@ -426,10 +436,13 @@ function ReaderScreen() {
 
   const readingIndex = navigateTo ?? state.index;
   const readingPercent = chunks.length > 1 ? Math.round(100 * readingIndex / (chunks.length - 1)) : 0;
-  const transport = { p: palette, playing, pending, disabled: controlsDisabled, canSeek: hasTimeline && !pending, play, skip };
-  const subtitle = pending ? status ?? "Buffering…" : `${passage} · ${narratorLabel} · ${rate}×`;
+  const bookProgress = state.phase === "finished" ? 100 : totalPages ? Math.floor(100 * pdfPage / totalPages) : readingPercent;
+  const remaining = 100 - bookProgress;
+  const transport = { p: palette, playing: playing || waitingForAudio, pending: showBuffering || !!setup || importing,
+    disabled: controlsDisabled, canSeek: hasTimeline && !pending, play, skip };
+  const subtitle = `${passage} · ${remaining}% left · ${narratorLabel} · ${rate}×`;
   const miniPlayer = <MiniPlayer {...transport} document={active} subtitle={subtitle}
-    progress={hasTimeline ? 100 * state.positionMs / state.durationMs! : readingPercent} expand={() => setScreen("player")} />;
+    progress={bookProgress} expand={() => setScreen("player")} />;
   const toggleChrome = () => setReadingChrome(value => !value);
   const move = (index: number) => jump({ title: "", depth: 0, page: index }, false, false);
   const location = totalPages ? pdfPage : readingIndex;
@@ -460,23 +473,17 @@ function ReaderScreen() {
       <ScrollView contentContainerStyle={{ padding: 20, gap: 10, alignItems: "center", flexGrow: 1, justifyContent: "center" }}>
         <View style={{ width: "48%", maxWidth: 205 }}><Cover key={document.id} {...active} p={palette} /></View>
         <Text accessibilityRole="header" numberOfLines={2} style={[ui.heading, { color: palette.ink, flex: 0, textAlign: "center" }]}>{document.title}</Text>
-        <Text style={{ color: palette.muted, textAlign: "center" }}>{document.author || "Unknown author"} · {passage}</Text>
+        <Text style={{ color: palette.muted, textAlign: "center" }}>{document.author || "Unknown author"}</Text>
         <View style={{ width: "100%" }}>
-          {hasTimeline ? <>
-            <Slider accessibilityLabel="Playback position in this passage" minimumValue={0} maximumValue={state.durationMs!}
-              value={state.positionMs} minimumTrackTintColor={palette.accent} maximumTrackTintColor={palette.line}
-              thumbTintColor={palette.accent} onSlidingComplete={value => void controller.current?.seek(value).catch(console.warn)}
-              accessibilityValue={{ text: `${elapsed} seconds in this passage` }} style={{ height: 48 }} />
-            <View style={[ui.row, { justifyContent: "space-between" }]}>
-              <Text style={{ color: palette.muted }}>{elapsed}s elapsed</Text>
-              <Text style={{ color: palette.muted }}>{Math.ceil(state.durationMs! / 1000)}s available</Text>
-            </View>
-          </> : <>
-            <ProgressLine p={palette} progress={readingPercent} />
-            <Text style={{ color: palette.muted, marginTop: 8 }}>{chunks.length ? "Total length is unknown until narration is generated." : "This PDF has no selectable text."}</Text>
-          </>}
+          <ProgressLine p={palette} progress={bookProgress} />
+          <View style={[ui.row, { justifyContent: "space-between", marginTop: 8 }]}>
+            <Text style={{ color: palette.muted }}>{passage}</Text>
+            <Text style={{ color: palette.muted }}>{remaining}% left</Text>
+          </View>
         </View>
-        <Text accessibilityLiveRegion="polite" style={{ color: palette.muted }}>{status}</Text>
+        <Text accessibilityLiveRegion="polite" numberOfLines={1} style={{ color: palette.muted, minHeight: 21 }}>
+          {waitingForAudio ? showBuffering ? "Buffering…" : "Listening" : status}
+        </Text>
         <Button p={palette} label="Read" action={() => setScreen("reader")} />
       </ScrollView>
       <View style={{ paddingVertical: 8, alignItems: "center" }}>
@@ -527,7 +534,7 @@ function ReaderScreen() {
         </View> : totalPages > 0 && (!pdfTextMode || !chunks.length)
           ? <PdfReader key={document.id} id={document.id} page={pdfPage} total={totalPages}
             text={pdfPageOverride === undefined && spokenSentence ? document.content.slice(spokenSentence.start, spokenSentence.end).trim() : undefined}
-            move={move} showNavigation={false} onTap={toggleChrome} openText={() => setPdfTextMode(true)} palette={palette} />
+            move={move} showNavigation={readingChrome} onTap={toggleChrome} openText={() => setPdfTextMode(true)} palette={palette} />
           : <Reader key={document.id} content={document.content} chunks={chunks} index={readingIndex}
             highlightedIndex={navigateTo === undefined ? state.highlightedIndex : null}
             onSelect={selectPassage} onTap={toggleChrome} palette={palette} fontSize={fontSize} />}
@@ -560,19 +567,24 @@ function ReaderScreen() {
       </Paper>
     </SafeAreaView>}
 
-    {sheet === "menu" && <Sheet key="menu" title="SonicPages" close={closeSheet} p={palette}>
+    {sheet === "menu" && <Sheet key="menu" title="Menu" close={dismissSheet("menu")} p={palette}>
       <Button p={palette} label="Appearance" action={() => setSheet("appearance")} />
       <Button p={palette} label="Voices" action={openVoice} />
       <Button p={palette} label="Storage" action={() => { showLibrary(); setSheet("storage"); }} />
     </Sheet>}
-    {sheet === "listen" && <Sheet key="listen" title="Listen" close={closeSheet} p={palette}>
+    {sheet === "listen" && <Sheet key="listen" title="Listen" close={dismissSheet("listen")} p={palette}>
       <Text accessibilityLiveRegion="polite" style={{ color: palette.muted }}>{playable ? status : "This PDF has no selectable text."}</Text>
       <View style={{ alignItems: "center" }}><Transport {...transport} /></View>
+      <Slider accessibilityLabel="Seek within this passage" minimumValue={0} maximumValue={state.durationMs || 1}
+        disabled={!transport.canSeek} value={hasTimeline ? state.positionMs : 0} minimumTrackTintColor={palette.accent}
+        maximumTrackTintColor={palette.line} thumbTintColor={palette.accent}
+        onSlidingComplete={value => void controller.current?.seek(value).catch(console.warn)}
+        accessibilityValue={{ text: `${Math.floor(state.positionMs / 1000)} seconds into this passage` }} style={{ height: 48 }} />
       <Button p={palette} label={`Voice · ${narratorLabel}`} action={openVoice} />
       <Button p={palette} label={`Speed · ${rate}×`} action={() => setSheet("speed")} />
       {state.phase !== "idle" && <Button p={palette} label="Stop" action={() => controller.current?.stop()} />}
     </Sheet>}
-    {sheet === "progress" && <Sheet key="progress" title="Reading progress" close={closeSheet} p={palette}>
+    {sheet === "progress" && <Sheet key="progress" title="Reading progress" close={dismissSheet("progress")} p={palette}>
       <Text style={{ color: palette.muted }}>{totalPages ? `Page ${location + 1} of ${locations}` : `Passage ${location + 1} of ${locations}`}</Text>
       <View style={ui.row}>
         <IconButton p={palette} icon="chevron-left" label="Previous location" action={() => move(location - 1)} disabled={location <= 0} />
@@ -584,7 +596,7 @@ function ReaderScreen() {
       </View>
       {!!bookmark && <Button p={palette} label="Go to bookmark" action={() => move(Number(bookmark))} />}
     </Sheet>}
-    {sheet === "textSize" && <Sheet key="textSize" title="Text size" close={closeSheet} p={palette}>
+    {sheet === "textSize" && <Sheet key="textSize" title="Text size" close={dismissSheet("textSize")} p={palette}>
       <View style={ui.row}>
         <Text style={{ color: palette.ink, flex: 1 }}>{fontSize} pt</Text>
         <IconButton p={palette} icon="minus" label="Decrease text size" disabled={fontSize <= 16}
@@ -594,17 +606,17 @@ function ReaderScreen() {
       </View>
     </Sheet>}
 
-    {sheet === "speed" && <Sheet key="speed" title="Playback speed" close={closeSheet} p={palette}>
+    {sheet === "speed" && <Sheet key="speed" title="Playback speed" close={dismissSheet("speed")} p={palette}>
       <View style={[ui.row, { flexWrap: "wrap" }]}>{[0.75, 1, 1.25, 1.5, 1.75, 2].map(value =>
         <Button key={value} p={palette} label={`${value}×`} selected={rate === value} action={() => {
           speed.current = value; player.current?.setRate(value); setRate(value); savePreference("rate", String(value)); closeSheet();
         }} />)}</View>
     </Sheet>}
-    {sheet === "appearance" && <Sheet key="appearance" title="Appearance" close={closeSheet} p={palette}>
+    {sheet === "appearance" && <Sheet key="appearance" title="Appearance" close={dismissSheet("appearance")} p={palette}>
       <View style={ui.row}>{(["system", "light", "dark"] as const).map(value =>
         <Button key={value} p={palette} label={value[0].toUpperCase() + value.slice(1)} selected={theme === value} action={() => setTheme(value)} />)}</View>
     </Sheet>}
-    {sheet === "voice" && <Sheet key="voice" title="Narration voice" close={closeSheet} p={palette}>
+    {sheet === "voice" && <Sheet key="voice" title="Narration voice" close={dismissSheet("voice")} p={palette}>
       {!!setup && <View style={ui.row}>
         <Text accessibilityLiveRegion="polite" style={{ color: palette.muted, flex: 1 }}>{setup}</Text>
         <Button p={palette} label="Cancel" action={closeSheet} />
@@ -624,7 +636,7 @@ function ReaderScreen() {
         </View>;
       })}
     </Sheet>}
-    {sheet === "storage" && <Sheet key="storage" title="Storage" close={closeSheet} p={palette}>
+    {sheet === "storage" && <Sheet key="storage" title="Storage" close={dismissSheet("storage")} p={palette}>
       <Text style={{ color: palette.ink }}>Original documents · {(storage.documents / 1_000_000).toFixed(1)} MB</Text>
       <Text style={{ color: palette.ink }}>Offline voice · {(storage.voiceBytes / 1_000_000).toFixed(1)} MB</Text>
       <Text style={{ color: palette.ink }}>Generated audio · {(storage.audioBytes / 1_000_000).toFixed(1)} MB</Text>

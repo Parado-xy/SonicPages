@@ -7,6 +7,8 @@ export interface AudioPlayer {
     positionMs: number,
     signal: AbortSignal,
     onStatus: (status: PlaybackStatus) => void,
+    mediaSession?: boolean,
+    artwork?: Promise<string | undefined>,
   ): Promise<void>;
   positionMs?(): number | undefined;
   seek?(positionMs: number): Promise<void>;

@@ -1,7 +1,7 @@
 import { BottomSheetBackdrop, BottomSheetModal, BottomSheetView } from "@gorhom/bottom-sheet";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRef } from "react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { Image, ImageBackground, Pressable, StyleSheet, Text, View } from "react-native";
 import { thumbnail } from "../storage/thumbnails";
 
@@ -51,12 +51,17 @@ export function Cover({ id, format, title, p, compact }: { id: string; format: s
 export function Sheet({ title, close, p, children }: { title: string; close(): void; p: Palette; children: ReactNode }) {
   const modal = useRef<BottomSheetModal>(null);
   const { bottom } = useSafeAreaInsets();
+  const mounted = useRef(false);
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   useEffect(() => { modal.current?.present(); }, []);
-  return <BottomSheetModal ref={modal} onDismiss={close} enablePanDownToClose
+  return <BottomSheetModal ref={modal} onDismiss={() => { if (mounted.current) close(); }} enablePanDownToClose
     backgroundStyle={{ backgroundColor: p.bg }} handleIndicatorStyle={{ backgroundColor: p.line }}
     backdropComponent={props => <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} />}>
     <BottomSheetView accessibilityViewIsModal style={{ paddingHorizontal: 20, paddingBottom: bottom + 16, gap: 12 }}>
-      <View style={ui.row}><Text accessibilityRole="header" style={[ui.heading, { color: p.ink }]}>{title}</Text><Button p={p} label="Done" action={close} /></View>
+      <View style={ui.row}><Text accessibilityRole="header" style={[ui.heading, { color: p.ink }]}>{title}</Text><Button p={p} label="Done" action={() => modal.current?.dismiss()} /></View>
       {children}
     </BottomSheetView>
   </BottomSheetModal>;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Modal, Text, TextInput, View } from "react-native";
 import type { LibraryEntry } from "../storage/readerStore";
 import { Button, Sheet, ui, type Palette } from "./Design";
@@ -9,12 +9,14 @@ export function DocumentOptions({ item, p, close, rename, remove, exportFile }: 
   exportFile(id: string, kind: "document" | "audio"): void;
 }) {
   const [mode, setMode] = useState<"menu" | "rename" | "delete">("menu");
+  const transitioning = useRef(false);
+  const showDialog = (next: "rename" | "delete") => { transitioning.current = true; setMode(next); };
   const [title, setTitle] = useState(item.title);
-  if (mode === "menu") return <Sheet title={item.title} close={close} p={p}>
-    <Button p={p} label="Rename" action={() => setMode("rename")} />
+  if (mode === "menu") return <Sheet title={item.title} close={() => { if (!transitioning.current) close(); }} p={p}>
+    <Button p={p} label="Rename" action={() => showDialog("rename")} />
     <Button p={p} label="Export document" action={() => { close(); exportFile(item.id, "document"); }} />
     <Button p={p} label="Export audio" action={() => { close(); exportFile(item.id, "audio"); }} />
-    <Button p={p} label="Delete" action={() => setMode("delete")} />
+    <Button p={p} label="Delete" action={() => showDialog("delete")} />
   </Sheet>;
   return <Modal transparent onRequestClose={close}>
     <View style={{ flex: 1, justifyContent: "center", padding: 24, backgroundColor: p.scrim }}>
