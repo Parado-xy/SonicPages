@@ -16,6 +16,8 @@ export function Reader({ content, chunks, index, highlightedIndex, onSelect, onT
   fontSize: number;
 }) {
   const list = useRef<FlatList>(null);
+  const attempts = useRef(0);
+  const retry = useRef<ReturnType<typeof setTimeout>>(undefined);
   const paragraphs = useMemo(() => {
     let cursor = 0;
     return Array.from(content.matchAll(/\S[\s\S]*?(?=\n\s*\n|$)/g), match => {
@@ -34,12 +36,17 @@ export function Reader({ content, chunks, index, highlightedIndex, onSelect, onT
     ? sentenceAt(content, chunks[highlightedIndex]) : undefined;
 
   useEffect(() => {
+    attempts.current = 0;
     if (paragraph >= 0) list.current?.scrollToIndex({ index: paragraph, animated: true, viewPosition: 0.28 });
+    return () => clearTimeout(retry.current);
   }, [paragraph]);
 
   return <FlatList ref={list} data={paragraphs} keyExtractor={item => String(item.start)}
     onScrollToIndexFailed={({ index: target, averageItemLength }) => {
+      if (attempts.current++ >= 3) return;
       list.current?.scrollToOffset({ offset: target * averageItemLength, animated: false });
+      clearTimeout(retry.current);
+      retry.current = setTimeout(() => list.current?.scrollToIndex({ index: target, animated: false, viewPosition: 0.28 }), 120);
     }}
     contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 22 }}
     renderItem={({ item }) => {

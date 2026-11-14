@@ -10,7 +10,8 @@ export function PdfReader({ id, page, total, text, move, openText, onTap, showNa
 }) {
   const [image, setImage] = useState<{uri: string; aspect: number}>();
   const [bounds, setBounds] = useState<Awaited<ReturnType<NonNullable<typeof readerMedia>["pdfHighlight"]>>>([]);
-  const [matched, setMatched] = useState<string>();
+  const [matched, setMatched] = useState<{ page: number; text: string }>();
+  const matchingCurrentPage = !!text && matched?.text === text && matched.page === page;
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let active = true;
@@ -35,7 +36,7 @@ export function PdfReader({ id, page, total, text, move, openText, onTap, showNa
     setBounds([]);
     setMatched(undefined);
     if (text) void readerMedia?.pdfHighlight(originalFile(id).uri, page, text)
-      .then(result => { if (active) { setBounds(result); setMatched(text); } }).catch(() => { if (active) setMatched(text); });
+      .then(result => { if (active) { setBounds(result); setMatched({ page, text }); } }).catch(() => { if (active) setMatched({ page, text }); });
     return () => { active = false; };
   }, [id, page, text]);
   return <View style={{ flex: 1 }}>
@@ -44,7 +45,7 @@ export function PdfReader({ id, page, total, text, move, openText, onTap, showNa
       <Text style={{ color: p.ink }}>Page {page + 1} of {total}</Text>
       <Button p={p} label="›" accessibilityLabel="Next PDF page" disabled={page + 1 >= total} action={() => move(page + 1)} />
     </View>}
-    {!!text && matched === text && !bounds.length && <View style={{ backgroundColor: p.card, padding: 10, gap: 4 }}>
+    {matchingCurrentPage && !bounds.length && <View style={{ backgroundColor: p.card, padding: 10, gap: 4 }}>
       <Text style={{ color: p.ink }}>Can’t locate this passage on the page.</Text>
       <Text style={{ color: p.muted }}>Narration continues. Follow along in Text view.</Text>
       <Button p={p} label="Open Text view" action={openText} />
@@ -52,7 +53,7 @@ export function PdfReader({ id, page, total, text, move, openText, onTap, showNa
     <ScrollView key={page} contentContainerStyle={{ padding: 8 }}>
       {image ? <Pressable accessibilityRole="button" accessibilityLabel="Toggle reader controls" onPress={onTap} style={{ width: "100%", aspectRatio: image.aspect, backgroundColor: p.pdfPaper }}>
         <Image source={{ uri: image.uri }} resizeMode="stretch" style={{ width: "100%", height: "100%" }} />
-        {bounds.map((box, index) => <View key={index} pointerEvents="none" style={{ position: "absolute",
+        {matchingCurrentPage && bounds.map((box, index) => <View key={index} pointerEvents="none" style={{ position: "absolute",
           backgroundColor: p.pdfHighlight, left: `${box.x * 100}%`, top: `${box.y * 100}%`,
           width: `${box.width * 100}%`, height: `${box.height * 100}%` }} />)}
       </Pressable> : <Text style={{ color: p.ink }}>{failed ? "Could not show this PDF page. Use Text view to keep reading." : "Opening page…"}</Text>}

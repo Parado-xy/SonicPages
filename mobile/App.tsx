@@ -123,12 +123,16 @@ function ReaderScreen() {
     const audio = new ExpoPlayer();
     player.current = audio;
     audio.setRate(speed.current);
+    let savedPercent = preference("percent:" + document.id);
     const session = new NarrationController(kokoroEngine, audio, chunks, document.title, position,
       setState, progress => {
         try {
           savePosition(document.id, progress);
           const percent = chunks.length > 1 ? Math.round(100 * progress.index / (chunks.length - 1)) : 0;
-          if (preference("percent:" + document.id) !== String(percent)) savePreference("percent:" + document.id, String(percent));
+          if (savedPercent !== String(percent)) {
+            savedPercent = String(percent);
+            savePreference("percent:" + document.id, savedPercent);
+          }
         }
         catch (error) { console.warn("Could not save SonicPages progress", error); }
       });
