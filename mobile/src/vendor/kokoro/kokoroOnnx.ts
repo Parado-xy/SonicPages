@@ -467,6 +467,22 @@ class KokoroOnnx {
       // 5. Process the output waveform
       const waveform = outputs['waveform'].data;
       console.log('Generated waveform with length:', waveform.length);
+      // Inspect whether the generated samples contain audible energy or near-silence.
+      let peak = 0;
+      let sumSquares = 0;
+      let nonFinite = 0;
+      for (let i = 0; i < waveform.length; i++) {
+        const sample = waveform[i];
+        if (!Number.isFinite(sample)) { nonFinite++; continue; }
+        peak = Math.max(peak, Math.abs(sample));
+        sumSquares += sample * sample;
+      }
+      console.log('Kokoro waveform diagnostics:', {
+        seconds: waveform.length / SAMPLE_RATE,
+        peak,
+        rms: Math.sqrt(sumSquares / Math.max(1, waveform.length - nonFinite)),
+        nonFinite
+      });
       
       // 6. Convert to audio buffer
       const audioUri = await this._floatArrayToAudioFile(waveform);
