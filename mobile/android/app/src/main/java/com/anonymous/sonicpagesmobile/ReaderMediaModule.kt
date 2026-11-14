@@ -28,7 +28,7 @@ class ReaderMediaModule(private val context: ReactApplicationContext) : ReactCon
   override fun getName() = "SonicPagesReaderMedia"
 
   @ReactMethod
-  fun thumbnail(uri: String, promise: Promise) = render(uri, 0, 384, promise, true)
+  fun thumbnail(uri: String, promise: Promise) = render(uri, 0, 960, promise, true)
 
   @ReactMethod
   fun pdfPage(uri: String, page: Int, promise: Promise) = render(uri, page, 1440, promise, false)
@@ -105,7 +105,7 @@ class ReaderMediaModule(private val context: ReactApplicationContext) : ReactCon
   private fun render(uri: String, pageIndex: Int, size: Int, promise: Promise, thumbnail: Boolean) {
     executor.execute {
       try {
-        val target = File.createTempFile("sonic-page-", ".jpg", context.cacheDir)
+        val target = File.createTempFile("sonic-page-", if (thumbnail) ".png" else ".jpg", context.cacheDir)
         var aspect = 1.0
         try {
           openPdf(uri).use {
@@ -117,7 +117,8 @@ class ReaderMediaModule(private val context: ReactApplicationContext) : ReactCon
               try {
                 bitmap.eraseColor(Color.WHITE)
                 page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                target.outputStream().use { stream -> check(bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream)) }
+                val format = if (thumbnail) Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG
+                target.outputStream().use { stream -> check(bitmap.compress(format, 85, stream)) }
               } finally { bitmap.recycle() }
             }
           }
