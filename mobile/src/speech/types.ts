@@ -32,13 +32,7 @@ export type GeneratedSpeech = {
   modelId: string;
 };
 
-export type SpeechEngineStatus =
-  | { state: "not-installed" }
-  | { state: "downloading"; progress: number }
-  | { state: "ready"; modelId: string }
-  | { state: "error"; message: string };
-
 export interface LocalSpeechEngine {
-  getStatus(): Promise<SpeechEngineStatus>;
-  synthesize(chunk: SpeechChunk, options: { voiceId: string; speed: number }): Promise<GeneratedSpeech>;
+  prepare(onStatus: (message: string) => void): Promise<void>;
+  synthesize(chunk: SpeechChunk, signal: AbortSignal): Promise<GeneratedSpeech>;
 }

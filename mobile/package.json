@@ -8,13 +8,14 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
-    "postinstall": "node scripts/fix-onnx-autolinking.cjs"
+    "postinstall": "node scripts/fix-onnx-autolinking.cjs",
+    "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
+    "cmu-pronouncing-dictionary": "^3.0.0",
     "expo": "~54.0.0",
     "expo-asset": "~12.0.14",
     "expo-audio": "~1.1.1",
-    "expo-av": "~16.0.8",
     "expo-constants": "~18.0.14",
     "expo-dev-client": "~6.0.0",
     "expo-document-picker": "~14.0.0",
@@ -22,11 +23,13 @@
     "expo-sqlite": "~16.0.0",
     "onnxruntime-react-native": "^1.22.0",
     "react": "19.1.0",
-    "react-native": "0.81.5"
+    "react-native": "0.81.5",
+    "react-native-safe-area-context": "~5.6.0"
   },
   "devDependencies": {
     "@react-native-community/cli": "^20.2.0",
     "@types/react": "~19.1.0",
+    "tsx": "^4.23.15",
     "typescript": "~5.9.2"
   }
 }

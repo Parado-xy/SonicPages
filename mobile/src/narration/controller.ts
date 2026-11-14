@@ -1,0 +1,103 @@
+import type { AudioPlayer } from "../audio/player";
+import type { GeneratedSpeech, LocalSpeechEngine, SpeechChunk } from "../speech/types";
+
+export type ReadingPosition = { index: number; positionMs: number };
+export type NarrationState = ReadingPosition & {
+  phase: "idle" | "generating" | "playing" | "paused" | "finished" | "error";
+  highlightedIndex: number | null;
+  error?: string;
+};
+
+export class NarrationController {
+  private session?: AbortController;
+  private state: NarrationState;
+
+  constructor(
+    private readonly engine: Pick<LocalSpeechEngine, "synthesize">,
+    private readonly audio: AudioPlayer,
+    private readonly chunks: SpeechChunk[],
+    private readonly title: string,
+    position: ReadingPosition,
+    private readonly publish: (state: NarrationState) => void,
+    private readonly persist: (position: ReadingPosition) => void,
+  ) {
+    this.state = { ...position, phase: "idle", highlightedIndex: null };
+  }
+
+  private update(next: Partial<NarrationState>) {
+    this.state = { ...this.state, ...next };
+    this.publish(this.state);
+  }
+
+  stop() {
+    this.session?.abort();
+    this.session = undefined;
+    if (this.state.highlightedIndex !== null) {
+      this.persist({ index: this.state.index, positionMs: this.state.positionMs });
+    }
+    this.update({ phase: "idle", highlightedIndex: null });
+  }
+
+  toggle() {
+    switch (this.state.phase) {
+      case "playing": this.audio.pause(); break;
+      case "paused": this.audio.resume(); break;
+      case "generating": break;
+      case "finished": void this.listen(0); break;
+      default: void this.listen(this.state.index, this.state.positionMs);
+    }
+  }
+
+  async listen(index: number, positionMs = 0) {
+    if (!this.chunks[index]) return;
+    this.session?.abort();
+    const session = new AbortController();
+    this.session = session;
+    const { signal } = session;
+    const prepare = (chunk: SpeechChunk): Promise<GeneratedSpeech> => {
+      const result = this.engine.synthesize(chunk, signal);
+      // A look-ahead failure is handled when its passage reaches the front of the queue.
+      void result.catch(() => undefined);
+      return result;
+    };
+
+    try {
+      this.persist({ index, positionMs });
+      let pending = prepare(this.chunks[index]);
+      for (let current = index; current < this.chunks.length && !signal.aborted; current++) {
+        const offset = current === index ? positionMs : 0;
+        this.update({ index: current, positionMs: offset, phase: "generating", highlightedIndex: null });
+        const clip = await pending;
+        if (signal.aborted) return;
+        const next = this.chunks[current + 1];
+        if (next) pending = prepare(next);
+        let lastSaved = -Infinity;
+        let hasPlayed = false;
+        await this.audio.play(clip.localAudioUri, this.title, offset, signal, status => {
+          if (signal.aborted) return;
+          hasPlayed ||= status.playing || status.positionMs > 0;
+          if (!hasPlayed) return;
+          const phase = status.playing ? "playing" : "paused";
+          const elapsed = Math.min(clip.durationMs, Math.max(0, status.positionMs));
+          const phaseChanged = this.state.phase !== phase;
+          this.update({ index: current, phase, positionMs: elapsed, highlightedIndex: current });
+          if (phaseChanged || Math.abs(elapsed - lastSaved) >= 1000) {
+            this.persist({ index: current, positionMs: elapsed });
+            lastSaved = elapsed;
+          }
+        });
+        if (signal.aborted) return;
+        this.persist(next ? { index: current + 1, positionMs: 0 } : { index: 0, positionMs: 0 });
+      }
+      if (!signal.aborted) {
+        this.update({ phase: "finished", highlightedIndex: null, positionMs: 0 });
+        session.abort();
+      }
+    } catch (error) {
+      if (!signal.aborted) {
+        this.update({ phase: "error", highlightedIndex: null, error: error instanceof Error ? error.message : String(error) });
+        session.abort();
+      }
+    }
+  }
+}
