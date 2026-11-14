@@ -80,3 +80,55 @@ test("a look-ahead failure is surfaced only after the current passage finishes",
   equal(states.find(state => state.phase === "playing")?.highlightedIndex, 0);
   equal(states.at(-1)?.error, "Voice unavailable");
 });
+
+test("backgrounding and stopping save the native position for offline restart", async () => {
+  let nativePosition = 720;
+  const { controller, states, positions } = fixture({
+    async synthesize(chunk) { return clip(chunk.id); },
+  }, {
+    async play(_uri, _title, _offset, signal, status) {
+      status({ playing: false, positionMs: 350 });
+      equal(states.at(-1)?.highlightedIndex, null);
+      status({ playing: true, positionMs: 350 });
+      status({ playing: false, buffering: true, positionMs: 420 });
+      equal(states.at(-1)?.phase, "buffering");
+      equal(states.at(-1)?.highlightedIndex, 0);
+      status({ playing: false, positionMs: 480 });
+      equal(states.at(-1)?.phase, "paused");
+      controller.checkpoint();
+      deepEqual(positions.at(-1), { index: 0, positionMs: 720 });
+      nativePosition = 810;
+      controller.stop();
+      equal(signal.aborted, true);
+      status({ playing: true, positionMs: 1200 });
+    },
+    positionMs: () => nativePosition,
+    pause() {},
+    resume() {},
+  });
+  await controller.listen(0, 350);
+  deepEqual(positions.at(-1), { index: 0, positionMs: 810 });
+  equal(states.at(-1)?.phase, "idle");
+});
+
+test("a long session keeps three passages ahead and plays every clip in order", async () => {
+  const passages = splitIntoChunks("long", "The light stayed on. ".repeat(450));
+  const requested: string[] = [];
+  const played: string[] = [];
+  const controller = new NarrationController({
+    async synthesize(chunk) {
+      requested.push(chunk.id);
+      return { ...clip(chunk.id), durationMs: 4000 };
+    },
+  }, {
+    async play(uri, _title, _position, _signal, status) {
+      equal(requested.length, Math.min(passages.length, played.length + 4));
+      played.push(uri);
+      status({ playing: true, positionMs: 0 });
+    },
+    pause() {},
+    resume() {},
+  }, passages, "Long document", { index: 0, positionMs: 0 }, () => {}, () => {});
+  await controller.listen(0);
+  deepEqual(played, passages.map(passage => passage.id));
+});

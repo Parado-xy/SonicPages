@@ -1,4 +1,4 @@
-export type PlaybackStatus = { playing: boolean; positionMs: number };
+export type PlaybackStatus = { playing: boolean; buffering?: boolean; positionMs: number };
 
 export interface AudioPlayer {
   play(
@@ -8,6 +8,7 @@ export interface AudioPlayer {
     signal: AbortSignal,
     onStatus: (status: PlaybackStatus) => void,
   ): Promise<void>;
+  positionMs?(): number | undefined;
   pause(): void;
   resume(): void;
 }
