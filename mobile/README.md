@@ -73,3 +73,15 @@ Desktop ONNX Runtime 1.24.3 with the v1.0 INT8 model, matching af_heart voice, a
 | SonicPages turns your documents into immersive listening experiences. | 10.24 s | 5.325 s | 0.628 | 0.067 |
 
 On the same desktop, the v1.0 INT8 and Q8F16 variants both returned healthy waveforms for a fixed phoneme input. Two CPU threads were faster than four in a single INT8 comparison on this host. Native performance, audible output, and background playback need verification on the S22. If synthesis is slower than playback, the queue can wait between uncached passages. Passage highlighting follows player events. Word alignment needs a timing source.
+
+### Standalone Android acceptance test
+
+Use the standalone APK artifact from Mobile checks or build the EAS preview profile from this directory:
+
+```sh
+npx eas-cli@latest build --platform android --profile preview
+```
+
+Keep Metro stopped. Install the APK using the same signing key as any existing installation if you want to keep its app data. On a clean test installation, start voice setup on Wi-Fi and check that progress is visible. Interrupt the connection, restore it, then retry setup. A partial download is retried from the beginning. A completed model download is reused if the voice download fails.
+
+Save a new TXT to Downloads. Once setup finishes, force-stop SonicPages, turn on airplane mode with Wi-Fi off, and launch from the app icon. The app should load the saved voice automatically. Import the new TXT and listen through multiple passages. Record whether launch, setup recovery, fresh synthesis, and playback pass on the device.

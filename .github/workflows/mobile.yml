@@ -32,10 +32,12 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npx expo export --platform android --output-dir "$RUNNER_TEMP/sonicpages-export"
-      - name: Build Android development APK
+      - name: Build standalone Android APK
         working-directory: mobile/android
-        run: bash gradlew :app:assembleDebug -PreactNativeArchitectures=arm64-v8a
+        run: bash gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a
+      - name: Verify APK contains the JavaScript bundle
+        run: unzip -l android/app/build/outputs/apk/release/app-release.apk assets/index.android.bundle
       - uses: actions/upload-artifact@v4
         with:
-          name: sonicpages-android-debug
-          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          name: sonicpages-android-standalone
+          path: mobile/android/app/build/outputs/apk/release/app-release.apk

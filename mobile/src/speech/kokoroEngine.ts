@@ -1,5 +1,5 @@
 import type { InferenceSession } from "onnxruntime-react-native";
-import { cachedAudio, installAsset, saveAudio } from "../storage/audioFiles";
+import { cachedAudio, installAsset, installedAsset, saveAudio } from "../storage/audioFiles";
 import { openKokoro, runKokoro, SAMPLE_RATE } from "../vendor/kokoro/kokoroOnnx";
 import { MODEL, VOICE } from "../vendor/kokoro/models";
 import { kokoroTokens } from "./phonemize";
@@ -11,16 +11,23 @@ class KokoroEngine implements LocalSpeechEngine {
   private setup?: Promise<void>;
   private queue: Promise<unknown> = Promise.resolve();
 
-  prepare(onStatus: (message: string) => void) {
-    if (this.session) return Promise.resolve();
-    return this.setup ??= this.install(onStatus).finally(() => { this.setup = undefined; });
+  hasOfflineVoice() {
+    return !!installedAsset(MODEL.filename, MODEL.bytes) && !!installedAsset(VOICE.filename, VOICE.bytes);
   }
 
-  private async install(onStatus: (message: string) => void) {
-    const model = await installAsset(MODEL.filename, MODEL.url, MODEL.bytes,
-      progress => onStatus("Downloading Kokoro " + Math.round(progress * 100) + "%"));
-    onStatus("Preparing Kokoro voice…");
-    const voice = await installAsset(VOICE.filename, VOICE.url, VOICE.bytes);
+  prepare(onStatus: (message: string) => void, offlineOnly = false) {
+    if (this.session) return Promise.resolve();
+    return this.setup ??= this.install(onStatus, offlineOnly).finally(() => { this.setup = undefined; });
+  }
+
+  private async install(onStatus: (message: string) => void, offlineOnly: boolean) {
+    const localModel = installedAsset(MODEL.filename, MODEL.bytes);
+    const localVoice = installedAsset(VOICE.filename, VOICE.bytes);
+    if (offlineOnly && (!localModel || !localVoice)) throw new Error("Offline voice files are missing");
+    const model = localModel ?? await installAsset(MODEL.filename, MODEL.url, MODEL.bytes,
+      progress => onStatus("Downloading speech model " + Math.round(progress * 100) + "%"));
+    const voice = localVoice ?? await installAsset(VOICE.filename, VOICE.url, VOICE.bytes,
+      progress => onStatus("Downloading voice " + Math.round(progress * 100) + "%"));
     this.voice = new Float32Array(await voice.arrayBuffer());
     onStatus("Loading Kokoro…");
     this.session = await openKokoro(model.uri);
