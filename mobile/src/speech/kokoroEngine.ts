@@ -6,6 +6,7 @@ import { cachedAudio, deleteGeneratedAudio, installAsset, installedAsset, saveAu
 import { openKokoro, runKokoro, SAMPLE_RATE } from "../vendor/kokoro/kokoroOnnx";
 import { MODEL, NARRATORS, VOICE } from "../vendor/kokoro/models";
 import { kokoroTokens } from "./phonemize";
+import { trimContinuationSilence } from "./continuationAudio";
 import type { LocalSpeechEngine, SpeechChunk } from "./types";
 
 export function cachedPassageAudio(chunk: SpeechChunk, narrator: string = VOICE.id) {
@@ -13,7 +14,8 @@ export function cachedPassageAudio(chunk: SpeechChunk, narrator: string = VOICE.
 }
 
 function audioKey(chunk: SpeechChunk, narrator: string) {
-  return [MODEL.id, encodeURIComponent(narrator), "cmu1", chunk.documentId, chunk.startChar, chunk.endChar].join("_");
+  const version = chunk.continuesSentence || chunk.sentenceContinues ? "cmu1-join1" : "cmu1";
+  return [MODEL.id, encodeURIComponent(narrator), version, chunk.documentId, chunk.startChar, chunk.endChar].join("_");
 }
 
 class KokoroEngine implements LocalSpeechEngine {
@@ -65,7 +67,7 @@ class KokoroEngine implements LocalSpeechEngine {
       if (cached) return { ...cached, chunkId: chunk.id, modelId: MODEL.id, words: [] };
       const waveform = await this.generate(chunk.text, narrator);
       if (signal.aborted) throw new Error("Narration stopped");
-      const saved = saveAudio(key, waveform, SAMPLE_RATE);
+      const saved = saveAudio(key, trimContinuationSilence(waveform, SAMPLE_RATE, chunk), SAMPLE_RATE);
       return { ...saved, chunkId: chunk.id, modelId: MODEL.id, words: [] };
     });
     this.queue = next.catch(() => undefined);

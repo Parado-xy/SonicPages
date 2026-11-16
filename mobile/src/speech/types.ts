@@ -16,6 +16,8 @@ export type SpeechChunk = {
   id: string;
   documentId: string;
   pageIndex?: number;
+  continuesSentence?: boolean;
+  sentenceContinues?: boolean;
   text: string;
   startChar: number;
   endChar: number;
