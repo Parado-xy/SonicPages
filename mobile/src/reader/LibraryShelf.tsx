@@ -94,7 +94,7 @@ export function LibraryShelf({ entries, p, active, open, expand, play, playing, 
       <Text style={{ color: p.muted }}>Layout</Text>
       <View style={[ui.row, { flexWrap: "wrap" }]}>
         <Button p={p} label="List" selected={list} action={() => { setList(true); savePreference("libraryView", "list"); }} />
-        {[2, 3, 4].map(value => <Button key={value} p={p} label={`${value} columns`} selected={!list && columns === value}
+        {[2, 3, 4].map(value => <Button key={value} p={p} label={String(value)} accessibilityLabel={`${value} columns`} selected={!list && columns === value}
           action={() => { setList(false); setColumns(value); savePreference("libraryView", "grid"); savePreference("libraryColumns", String(value)); }} />)}
       </View>
     </Sheet>}

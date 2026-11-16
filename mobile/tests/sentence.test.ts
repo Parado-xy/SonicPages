@@ -14,3 +14,12 @@ test("highlights the same whole sentence across bounded requests without crossin
     equal(text.slice(start, end), chunk.pageIndex === 0 ? first : next);
   }
 });
+
+test("only the edges inside a split sentence are marked as continuations", () => {
+  const chunks = documentChunks("book", "A long sentence ".repeat(10) + "ends here. The next sentence begins.");
+  equal(chunks.length, 3);
+  equal(chunks[0].sentenceContinues, true);
+  equal(chunks[1].continuesSentence, true);
+  equal(chunks[1].sentenceContinues, false);
+  equal(chunks[2].continuesSentence, false);
+});

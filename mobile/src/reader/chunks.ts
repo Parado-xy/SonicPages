@@ -8,6 +8,8 @@ export function splitIntoChunks(documentId: string, text: string, maxLength = 96
   for (const sentence of sentences) {
     let start = sentence.index;
     const end = start + sentence[0].length;
+    const spokenEnd = start + sentence[0].replace(/[^\p{L}\p{N}]+$/u, "").length;
+    let previousFragment = false;
     while (start < end) {
       let cut = Math.min(end, start + maxLength);
       if (cut < end) {
@@ -17,10 +19,15 @@ export function splitIntoChunks(documentId: string, text: string, maxLength = 96
         else if (/[\uDC00-\uDFFF]/.test(text[cut])) cut--;
       }
       const content = text.slice(start, cut);
-      if (/[\p{L}\p{N}]/u.test(content)) chunks.push({
-        id: documentId + ":" + start + "-" + cut,
-        documentId, text: content, startChar: start, endChar: cut,
-      });
+      if (/[\p{L}\p{N}]/u.test(content)) {
+        chunks.push({
+          id: documentId + ":" + start + "-" + cut,
+          documentId, text: content, startChar: start, endChar: cut,
+          continuesSentence: previousFragment,
+          sentenceContinues: cut < spokenEnd,
+        });
+        previousFragment = true;
+      }
       start = cut;
     }
   }

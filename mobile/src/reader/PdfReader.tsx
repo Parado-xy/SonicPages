@@ -59,10 +59,11 @@ export function PdfReader({ id, page, total, pageText, range, move, openText, on
       <Text style={{ flex: 1, color: p.muted }}>Some highlights are unavailable.</Text>
       <Button p={p} label="Text view" action={openText} />
     </View>}
-    {showNavigation && <View style={[ui.row, { justifyContent: "space-between", paddingHorizontal: 12 }]}>
+    <View style={[ui.row, { justifyContent: "space-between", paddingHorizontal: 12, opacity: showNavigation ? 1 : 0 }]}
+      pointerEvents={showNavigation ? "auto" : "none"} importantForAccessibility={showNavigation ? "auto" : "no-hide-descendants"}>
       <IconButton p={p} icon="chevron-left" label="Previous PDF page" disabled={page === 0} action={() => move(page - 1)} />
       <Text style={{ color: p.ink }}>Page {page + 1} of {total}</Text>
       <IconButton p={p} icon="chevron-right" label="Next PDF page" disabled={page + 1 >= total} action={() => move(page + 1)} />
-    </View>}
+    </View>
   </View>;
 }

@@ -8,6 +8,7 @@ export const readerMedia = NativeModules.SonicPagesReaderMedia as {
   pdfPage(uri: string, page: number): Promise<{uri: string; aspect: number}>;
   pdfHighlight(uri: string, page: number, text: string): Promise<{x: number; y: number; width: number; height: number}[]>;
   thumbnail(uri: string): Promise<string>;
+  setReadingAwake?(awake: boolean): void;
   deviceVoice(): Promise<string | null>;
   synthesize(text: string, voiceId: string): Promise<string>;
 } | undefined;

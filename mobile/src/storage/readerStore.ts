@@ -159,6 +159,6 @@ export function deleteDocument(id: string) {
     store.runSync("DELETE FROM document_titles WHERE document_id = ?", id);
     store.runSync("DELETE FROM document_metadata WHERE document_id = ?", id);
     store.runSync("DELETE FROM documents WHERE id = ?", id);
-    store.runSync("DELETE FROM reader_preferences WHERE key IN (?, ?, ?, ?)", "author:" + id, "bookmark:" + id, "pdfPage:" + id, "percent:" + id);
+    store.runSync("DELETE FROM reader_preferences WHERE key IN (?, ?, ?, ?, ?)", "author:" + id, "bookmark:" + id, "pdfPage:" + id, "percent:" + id, "notes:" + id);
   });
 }
