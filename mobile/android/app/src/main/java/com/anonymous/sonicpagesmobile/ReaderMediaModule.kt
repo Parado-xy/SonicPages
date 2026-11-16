@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.Bundle
+import android.view.WindowManager
 import android.os.Build
 import com.facebook.react.bridge.Arguments
 import android.os.ParcelFileDescriptor
@@ -26,6 +27,15 @@ class ReaderMediaModule(private val context: ReactApplicationContext) : ReactCon
   private val waiting = mutableListOf<(Boolean) -> Unit>()
 
   override fun getName() = "SonicPagesReaderMedia"
+
+  @ReactMethod
+  fun setReadingAwake(awake: Boolean) {
+    val activity = context.currentActivity ?: return
+    activity.runOnUiThread {
+      if (awake) activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+      else activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+  }
 
   @ReactMethod
   fun thumbnail(uri: String, promise: Promise) = render(uri, 0, 960, promise, true)

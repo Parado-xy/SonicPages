@@ -123,12 +123,15 @@ export class NarrationController {
           scheduled++;
         }
       };
-      fill(index);
+      fill(this.chunks[index].sentenceContinues ? index + 1 : index);
+      let previousEndedAt: number | undefined;
       for (let current = index; current < this.chunks.length && !signal.aborted; current++) {
         const offset = current === index ? positionMs : 0;
         this.update({ index: current, positionMs: offset, phase: "generating", highlightedIndex: null, durationMs: undefined });
         this.clipDurationMs = undefined;
+        const waitStarted = Date.now();
         const clip = await pending.get(current)!;
+        const synthesisWaitMs = Date.now() - waitStarted;
         pending.delete(current);
         if (signal.aborted) return;
         const next = this.chunks[current + 1];
@@ -138,6 +141,12 @@ export class NarrationController {
         let hasPlayed = false;
         await this.audio.play(clip.localAudioUri, this.title, offset, signal, status => {
           if (signal.aborted) return;
+          if (!hasPlayed && status.playing && this.chunks[current].continuesSentence && previousEndedAt !== undefined) {
+            console.info("SonicPages continuation", {
+              synthesisWaitMs,
+              handoffMs: Math.max(0, Date.now() - previousEndedAt - synthesisWaitMs),
+            });
+          }
           hasPlayed ||= status.playing;
           if (!hasPlayed) return;
           const phase = status.buffering ? "buffering" : status.playing ? "playing" : "paused";
@@ -151,6 +160,7 @@ export class NarrationController {
         }, true, artwork);
         if (signal.aborted) return;
         this.clipDurationMs = undefined;
+        previousEndedAt = Date.now();
         this.persist(next ? { index: current + 1, positionMs: 0 } : { index: 0, positionMs: 0 });
       }
       if (!signal.aborted) {

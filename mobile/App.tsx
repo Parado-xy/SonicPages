@@ -1,3 +1,5 @@
+import { Notes, type ReaderNote } from "./src/reader/Notes";
+import { extractEpubContents } from "./src/imports/epub";
 import { NavigationContainer, createNavigationContainerRef, DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { LibraryShelf } from "./src/reader/LibraryShelf";
@@ -78,7 +80,7 @@ function ReaderScreen() {
     });
     return () => subscription.remove();
   }, [contentsOpen, readerOpen]);
-  type SheetName = "speed" | "voice" | "appearance" | "storage" | "menu" | "textSize" | "listen" | "progress";
+  type SheetName = "speed" | "voice" | "appearance" | "storage" | "menu" | "textSize" | "listen" | "progress" | "notes";
   const currentSheet = useRef<SheetName | undefined>(undefined);
   const [sheet, updateSheet] = useState<SheetName>();
   const setSheet = (next?: SheetName) => { currentSheet.current = next; updateSheet(next); };
@@ -102,6 +104,26 @@ function ReaderScreen() {
   const [processing, setProcessing] = useState<{ raw: string; title: string }>();
   const [document, setDocument] = useState(() => loadDocument(DEMO));
   const chunks = useMemo(() => documentChunks(document.id, document.content, document.pageStarts), [document]);
+  const [notes, setNotes] = useState<ReaderNote[]>([]);
+  const [noteIndex, setNoteIndex] = useState<number>();
+  const [chapters, setChapters] = useState<{ title: string; offset: number }[]>([]);
+  useEffect(() => {
+    setNotes(JSON.parse(preference("notes:" + document.id) ?? "[]") as ReaderNote[]);
+    setNoteIndex(undefined);
+  }, [document.id]);
+  useEffect(() => {
+    const source = originalFile(document.id);
+    setChapters([]);
+    if (!document.sourceName?.toLowerCase().endsWith(".epub") || !source.exists) return;
+    let active = true;
+    void source.bytes().then(extractEpubContents).then(items => { if (active) setChapters(items); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [document.id, document.sourceName]);
+  const updateNotes = (next: ReaderNote[]) => {
+    savePreference("notes:" + document.id, JSON.stringify(next));
+    setNotes(next);
+  };
   const initial = { index: Math.min(document.index, Math.max(0, chunks.length - 1)), positionMs: document.positionMs };
   const [state, setState] = useState<NarrationState>({ ...initial, phase: "idle", highlightedIndex: null });
   const [ready, setReady] = useState(false);
@@ -457,6 +479,12 @@ function ReaderScreen() {
     start: Math.max(0, spokenSentence.start - pageStart),
     end: Math.min(pageText.length, spokenSentence.end - pageStart),
   } : undefined;
+  const immersiveReader = readerOpen && !contentsOpen;
+  const keepReaderAwake = immersiveReader && !playing && !pending;
+  useEffect(() => {
+    readerMedia?.setReadingAwake?.(keepReaderAwake);
+    return () => readerMedia?.setReadingAwake?.(false);
+  }, [keepReaderAwake]);
   const scanIntro = totalPages > 0 && !chunks.length && !showScan;
   const colors = {
     ...(palette === dark ? DarkTheme : DefaultTheme).colors,
@@ -470,6 +498,16 @@ function ReaderScreen() {
       progress={item => item.id === document.id && readingPercent ? `${readingPercent}%` : item.progress ? `${item.progress}%` : item.format} />
     {!!entries.length && miniPlayer}
   </Paper>;
+
+  const currentChunk = chunks[state.highlightedIndex ?? readingIndex];
+  const currentSentence = currentChunk && sentenceAt(document.content, currentChunk);
+  const transcript = useMemo(() => {
+    if (!currentSentence) return [];
+    const before = chunks.findLast(chunk => chunk.endChar <= currentSentence.start);
+    const after = chunks.find(chunk => chunk.startChar >= currentSentence.end);
+    return [before && sentenceAt(document.content, before), currentSentence, after && sentenceAt(document.content, after)]
+      .filter(item => item !== undefined);
+  }, [currentSentence?.start, currentSentence?.end, chunks, document.content]);
 
   const nowPlaying = <Paper palette={palette}>
     {!entries.length ? <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 24 }}>
@@ -490,6 +528,13 @@ function ReaderScreen() {
         <Text accessibilityLiveRegion="polite" numberOfLines={1} style={{ color: palette.muted, minHeight: 21 }}>
           {waitingForAudio ? showBuffering ? "Buffering…" : "Listening" : status}
         </Text>
+        {!!chunks.length && <View style={{ width: "100%", gap: 8 }}>
+          {transcript.map(({ start, end }) => <Text key={start} numberOfLines={start === currentSentence?.start ? 6 : 2}
+            style={{ padding: 8, borderRadius: 8, color: start === currentSentence?.start ? palette.ink : palette.muted,
+              backgroundColor: start === currentSentence?.start ? palette.highlight : "transparent", textAlign: "center" }}>
+            {document.content.slice(start, end).trim()}
+          </Text>)}
+        </View>}
         <Button p={palette} label="Read" action={() => setScreen("reader")} />
       </ScrollView>
       <View style={{ paddingVertical: 8, alignItems: "center" }}>
@@ -503,8 +548,8 @@ function ReaderScreen() {
     </>}
   </Paper>;
 
-  return <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: palette.bg }}>
-    <StatusBar barStyle={palette === dark ? "light-content" : "dark-content"} />
+  return <SafeAreaView edges={immersiveReader ? ["left", "right"] : ["top", "left", "right"]} style={{ flex: 1, backgroundColor: palette.bg }}>
+    <StatusBar hidden={immersiveReader} barStyle={palette === dark ? "light-content" : "dark-content"} />
     <View style={{ flex: 1, display: readerOpen || contentsOpen ? "none" : "flex" }}>
       <NavigationContainer ref={navigation} theme={{ ...(palette === dark ? DarkTheme : DefaultTheme), colors }}>
         <Tabs.Navigator screenOptions={{ headerShown: false, tabBarActiveTintColor: palette.accent,
@@ -518,7 +563,8 @@ function ReaderScreen() {
     </View>
     {readerOpen && !contentsOpen && <SafeAreaView edges={["bottom"]} style={{ flex: 1 }}>
       <Paper palette={palette}>
-        {readingChrome && <View style={[ui.row, { paddingHorizontal: 8, justifyContent: "space-between" }]}>
+        <View style={[ui.row, { paddingHorizontal: 8, justifyContent: "space-between", opacity: readingChrome ? 1 : 0 }]}
+          pointerEvents={readingChrome ? "auto" : "none"} importantForAccessibility={readingChrome ? "auto" : "no-hide-descendants"}>
           <IconButton p={palette} icon="arrow-left" label="Back to Library" action={() => {
             controller.current?.checkpoint(); setEntries(listDocuments()); setScreen("library");
           }} />
@@ -531,7 +577,7 @@ function ReaderScreen() {
               const next = bookmark === bookmarkValue ? "" : bookmarkValue;
               savePreference(bookmarkKey, next); setBookmark(next);
             }} />
-        </View>}
+        </View>
         {scanIntro ? <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 20, gap: 12 }}>
           <View style={{ width: 88 }}><Cover {...active} p={palette} /></View>
           <Text style={[ui.title, { color: palette.ink }]}>No selectable text</Text>
@@ -541,18 +587,21 @@ function ReaderScreen() {
           ? <PdfReader key={document.id} id={document.id} page={pdfPage} total={totalPages}
             pageText={pageText} range={pdfRange}
             move={move} showNavigation={readingChrome} onTap={toggleChrome} openText={() => setPdfTextMode(true)} palette={palette} />
-          : <Reader key={document.id} content={document.content} chunks={chunks} index={readingIndex}
+          : <Reader key={document.id} content={document.content} chunks={chunks} pageStarts={document.pageStarts} chapters={chapters} notes={notes} index={readingIndex}
             highlightedIndex={navigateTo === undefined ? state.highlightedIndex : null}
-            onSelect={selectPassage} onTap={toggleChrome} palette={palette} fontSize={fontSize} />}
-        {(playing || pending || state.phase === "paused") && miniPlayer}
+            onSelect={selectPassage} onAnnotate={index => { setNoteIndex(index); setSheet("notes"); }} onTap={toggleChrome} palette={palette} fontSize={fontSize} />}
+        {(playing || pending || state.phase === "paused") && <View pointerEvents="box-none"
+          style={{ position: "absolute", left: 0, right: 0, bottom: 100 }}>{miniPlayer}</View>}
         {readingChrome ? <View style={[ui.row, { justifyContent: "space-evenly" }]}>
           <IconButton p={palette} icon="list" label="Contents" action={() => setContentsOpen(true)} />
           <IconButton p={palette} icon="sun" label="Appearance" action={() => setSheet("appearance")} />
           <IconButton p={palette} icon="sliders" label="Reading progress" action={() => setSheet("progress")} />
           <IconButton p={palette} icon="type" label="Text size" action={() => setSheet("textSize")} />
+          <IconButton p={palette} icon="edit-3" label="Highlights and notes" disabled={!chunks.length}
+            action={() => { setNoteIndex(readingIndex); setSheet("notes"); }} />
           <IconButton p={palette} icon="headphones" label="Listen" selected={playing} action={() => setSheet("listen")} />
         </View> : <Pressable accessibilityRole="button" accessibilityLabel="Show reader controls" onPress={toggleChrome}
-          style={{ minHeight: 48, alignItems: "center", justifyContent: "center" }}>
+          style={{ height: 48, alignItems: "center", justifyContent: "center" }}>
           <Text style={{ color: palette.muted }}>{totalPages ? `${pdfPage + 1} / ${totalPages}` : `${readingPercent}%`}</Text>
         </Pressable>}
       </Paper>
@@ -572,6 +621,19 @@ function ReaderScreen() {
         </View>
       </Paper>
     </SafeAreaView>}
+
+    {sheet === "notes" && noteIndex !== undefined && <Sheet key="notes" title="Highlights and notes" close={dismissSheet("notes")} p={palette}>
+      <Notes key={noteIndex} notes={notes} current={noteIndex} excerpt={index => chunks[index]?.text.trim() ?? ""}
+        palette={palette} save={note => { updateNotes([...notes.filter(item => item.index !== note.index), note]); closeSheet(); }}
+        listen={index => { closeSheet(); selectPassage(index); }}
+        remove={index => updateNotes(notes.filter(note => note.index !== index))}
+        jump={index => {
+          const chunk = chunks[index];
+          if (!chunk) return;
+          if (totalPages) setPdfTextMode(true);
+          jump({ title: "", depth: 0, offset: chunk.startChar, page: chunk.pageIndex }, false);
+        }} />
+    </Sheet>}
 
     {sheet === "menu" && <Sheet key="menu" title="Menu" close={dismissSheet("menu")} p={palette}>
       <Button p={palette} label="Appearance" action={() => setSheet("appearance")} />
